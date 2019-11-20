@@ -14,7 +14,7 @@ fn main() {
     let addr = "127.0.0.1:6142".parse().unwrap();
     let listener = TcpListener::bind(&addr).unwrap();
 
-    let counter = Arc::new(Mutex::new(0));
+    let counter = Arc::new(Mutex::new(BTreeMap::new(BTreeMap<&str, &str>)));
 
     let server = listener
         .incoming()
@@ -25,22 +25,12 @@ fn main() {
 
             let responses = lines_rx.map(move |incomming_message| {
                 match incomming_message.as_ref() {
-                    "read" => {
+                    "insert" => {
                         let value = counter.lock().unwrap();
                         return format!("The counter reads: {}\n", *value);
                     }
-                    "increment" => {
-                        let mut value = counter.lock().unwrap();
-                        *value += 1;
-                        return format!("After being incremented, the counter reads: {}\n", *value);
-                    }
-                    "decrement" => {
-                        let mut value = counter.lock().unwrap();
-                        *value -= 1;
-                        return format!("After being decremented, the counter reads: {}\n", *value);
-                    }
                     _ => {
-                        return format!("The commands are: read, increment, decrement.\n");
+                        return format!("The commands are: set, get, remove, listkeys.\n");
                     }
                 }
                 //return incomming_message;
