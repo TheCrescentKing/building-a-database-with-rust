@@ -10,27 +10,60 @@ use tokio::codec::LinesCodec;
 use tokio::net::TcpListener;
 use tokio::prelude::*;
 
+// import BTreeMap
+use std::collections::BTreeMap;
+
+/*                                     DATABASE RESOURCES                                        */
+
+enum Data {
+    Map(BTreeMap<String, Data>),
+    Value(String),
+}
+
+/*                                     SERVER RESOURCES                                          */
+
 fn main() {
     let addr = "127.0.0.1:6142".parse().unwrap();
     let listener = TcpListener::bind(&addr).unwrap();
 
-    let counter = Arc::new(Mutex::new(BTreeMap::new(BTreeMap<&str, &str>)));
+    let map: BTreeMap<String, Data> = BTreeMap::new();
+
+    let database_arc = Arc::new(Mutex::new(map));
 
     let server = listener
         .incoming()
         .map_err(|e| println!("failed to accept socket; error = {:?}", e))
         .for_each(move |socket| {
-            let counter = Arc::clone(&counter);
+            let database_arc = Arc::clone(&database_arc);
             let (lines_tx, lines_rx) = LinesCodec::new().framed(socket).split();
 
             let responses = lines_rx.map(move |incomming_message| {
                 match incomming_message.as_ref() {
+                    "keys" => {
+                        let db = database_arc.lock().unwrap();
+                        let keys: Vec<_> = (*db).keys().cloned().collect();
+                        return format!("The database keys are: {:?}\n", keys);
+                    }
                     "insert" => {
-                        let value = counter.lock().unwrap();
-                        return format!("The counter reads: {}\n", *value);
+                        let mut db = database_arc.lock().unwrap();
+                        (*db).insert("key1".to_string(), Data::Value("value1".to_string()));
+                        return format!("Done?");
+                    }
+                    "get" => {
+                        // fix printing
+                        let db = database_arc.lock().unwrap();
+                        let result = (*db).get(&("key1".to_string())).unwrap();
+                        match result {
+                            Data::Value(val) => {
+                                return format!("{}\n", val);
+                            }
+                            Data::Map(_) => {
+                                return format!("Map"); // Fix proper printing
+                            }
+                        }
                     }
                     _ => {
-                        return format!("The commands are: set, get, remove, listkeys.\n");
+                        return format!("The commands are: insert, get, remove, keys.\n");
                     }
                 }
                 //return incomming_message;
@@ -43,19 +76,6 @@ fn main() {
 
             tokio::spawn(writes.then(move |_| Ok(())));
 
-            /*
-            let (reader, writer) = socket.split();
-            let amount = io::copy(reader, writer);
-            let msg = amount.then(|result| {
-                match result {
-                    Ok((amount, _, _)) => println!("Wrote {} bytes", amount),
-                    Err(e) => println!("Error: {}", e),
-                }
-                Ok(())
-            });
-
-            tokio::spawn(msg);
-            */
             Ok(())
         });
 
