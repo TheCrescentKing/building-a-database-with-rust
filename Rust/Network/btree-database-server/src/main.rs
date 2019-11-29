@@ -62,6 +62,28 @@ fn main() {
                             }
                         }
                     }
+                    "insertbtree" => {
+                        let mut db = database_arc.lock().unwrap();
+                        let new_tree: BTreeMap<String, Data> = BTreeMap::new();
+                        (*db).insert("Employees".to_string(), Data::Map(new_tree));
+                        return format!("Done?");
+                    }
+                    "getbtree" => {
+                        let db = database_arc.lock().unwrap();
+                        let result = (*db).get(&("Employees".to_string())).unwrap();
+                        match result {
+                            Data::Value(val) => {
+                                return format!("{}\n", val);
+                            }
+                            Data::Map(map) => {
+                                let keys: Vec<_> = map.keys().cloned().collect();
+                                return format!(
+                                    "The values stored under {} are: {:?}\n",
+                                    "Employees", keys
+                                );
+                            }
+                        }
+                    }
                     _ => {
                         return format!("The commands are: insert, get, remove, keys.\n");
                     }
