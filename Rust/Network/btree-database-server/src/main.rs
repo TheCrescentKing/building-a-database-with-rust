@@ -32,31 +32,39 @@ enum Command {
 
 fn parse_string(mut input: String) -> (Command, Option<Vec<String>>) {
     trim_newline(&mut input);
-    let result = input
+    let input_vec = input
         .split(" ") // Split by spaces
         .map(ToString::to_string)
         .collect::<Vec<String>>();
 
-    match result[0].to_lowercase().as_str() {
+    // TODO Check for empty result and retuen error
+
+    match input_vec[0].to_lowercase().as_str() {
         "keys" => {
             return (Command::Keys, None);
         }
         "get" => {
-            if result.len() > 2 {
+            if input_vec.len() != 2 {
                 return (
-                    Command::Error("Error: Get only receives 2 parameters!".to_string()),
+                    Command::Error("Error: Get receives 2 parameters!".to_string()),
                     None,
                 );
             }
-            let param_keys = result[1]
+            let param_keys = input_vec[1]
                 .split("/") // Split by slash
                 .map(ToString::to_string)
                 .collect::<Vec<String>>();
             return (Command::Get, Some(param_keys));
         }
         "set" => {
-            // TODO finish set parsing
-            return (Command::Set, None);
+            if input_vec.len() != 3 {
+                return (
+                    Command::Error("Error: Set receives 3 parameters!".to_string()),
+                    None,
+                );
+            }
+            let param_k_v = input_vec[1..2].to_vec();
+            return (Command::Set, Some(param_k_v));
         }
         "remove" => {
             // TODO finish remove parsing
