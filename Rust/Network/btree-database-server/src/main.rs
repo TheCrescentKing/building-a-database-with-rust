@@ -37,7 +37,9 @@ fn parse_string(mut input: String) -> (Command, Option<Vec<String>>) {
         .map(ToString::to_string)
         .collect::<Vec<String>>();
 
-    // TODO Check for empty result and retuen error
+    if input_vec.len() <= 0 {
+        return (Command::Error("Please input a command!".to_string()), None);
+    }
 
     match input_vec[0].to_lowercase().as_str() {
         "keys" => {
@@ -46,7 +48,7 @@ fn parse_string(mut input: String) -> (Command, Option<Vec<String>>) {
         "get" => {
             if input_vec.len() != 2 {
                 return (
-                    Command::Error("Error: Get receives 2 parameters!".to_string()),
+                    Command::Error("Error: Get receives 1 parameter!".to_string()),
                     None,
                 );
             }
@@ -59,7 +61,7 @@ fn parse_string(mut input: String) -> (Command, Option<Vec<String>>) {
         "set" => {
             if input_vec.len() != 3 {
                 return (
-                    Command::Error("Error: Set receives 3 parameters!".to_string()),
+                    Command::Error("Error: Set receives 2 parameters!".to_string()),
                     None,
                 );
             }
@@ -67,8 +69,14 @@ fn parse_string(mut input: String) -> (Command, Option<Vec<String>>) {
             return (Command::Set, Some(param_k_v));
         }
         "remove" => {
-            // TODO finish remove parsing
-            return (Command::Remove, None);
+            if input_vec.len() != 2 {
+                return (
+                    Command::Error("Error: Remove receives 1 parameter!".to_string()),
+                    None,
+                );
+            }
+            let param_remove_key = vec![input_vec[1].to_string()];
+            return (Command::Remove, Some(param_remove_key));
         }
         _ => {
             return (
