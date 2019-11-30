@@ -13,14 +13,74 @@ use tokio::prelude::*;
 // import BTreeMap
 use std::collections::BTreeMap;
 
-/*                                     DATABASE RESOURCES                                        */
+/*                                      DATABASE RESOURCES                                       */
 
 enum Data {
     Map(BTreeMap<String, Data>),
     Value(String),
 }
 
-/*                                     SERVER RESOURCES                                          */
+/*                                      STRING PARSER                                            */
+
+enum Command {
+    Keys,
+    Get,
+    Set,
+    Remove,
+    Error(String),
+}
+
+fn parse_string(mut input: String) -> (Command, Option<Vec<String>>) {
+    trim_newline(&mut input);
+    let result = input
+        .split(" ") // Split by spaces
+        .map(ToString::to_string)
+        .collect::<Vec<String>>();
+
+    match result[0].to_lowercase().as_str() {
+        "keys" => {
+            return (Command::Keys, None);
+        }
+        "get" => {
+            if result.len() > 2 {
+                return (
+                    Command::Error("Error: Get only receives 2 parameters!".to_string()),
+                    None,
+                );
+            }
+            let param_keys = result[1]
+                .split("/") // Split by slash
+                .map(ToString::to_string)
+                .collect::<Vec<String>>();
+            return (Command::Get, Some(param_keys));
+        }
+        "set" => {
+            // TODO finish set parsing
+            return (Command::Set, None);
+        }
+        "remove" => {
+            // TODO finish remove parsing
+            return (Command::Remove, None);
+        }
+        _ => {
+            return (
+                Command::Error("Error: Command does not exist.".to_string()),
+                None,
+            )
+        }
+    }
+}
+
+fn trim_newline(s: &mut String) {
+    if s.ends_with('\n') {
+        s.pop();
+        if s.ends_with('\r') {
+            s.pop();
+        }
+    }
+}
+
+/*                                      SERVER RESOURCES                                         */
 
 fn main() {
     let addr = "127.0.0.1:6142".parse().unwrap();
@@ -38,6 +98,9 @@ fn main() {
             let (lines_tx, lines_rx) = LinesCodec::new().framed(socket).split();
 
             let responses = lines_rx.map(move |incomming_message| {
+                parse_string(incomming_message);
+                return "TODO: Return proper message.".to_string();
+                /*
                 match incomming_message.as_ref() {
                     "keys" => {
                         let db = database_arc.lock().unwrap();
@@ -88,6 +151,7 @@ fn main() {
                         return format!("The commands are: insert, get, remove, keys.\n");
                     }
                 }
+                */
                 //return incomming_message;
             });
 
