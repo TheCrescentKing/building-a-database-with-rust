@@ -25,7 +25,7 @@ enum Data {
 enum Command {
     Keys,
     Get,
-    Set,
+    SetVal,
     Remove,
     Error(String),
 }
@@ -58,7 +58,7 @@ fn parse_string(mut input: String) -> (Command, Option<Vec<String>>) {
                 .collect::<Vec<String>>();
             return (Command::Get, Some(param_keys));
         }
-        "set" => {
+        "setval" => {
             if input_vec.len() != 3 {
                 return (
                     Command::Error("Error: Set receives 2 parameters!".to_string()),
@@ -66,7 +66,7 @@ fn parse_string(mut input: String) -> (Command, Option<Vec<String>>) {
                 );
             }
             let param_k_v = input_vec[1..2].to_vec();
-            return (Command::Set, Some(param_k_v));
+            return (Command::SetVal, Some(param_k_v));
         }
         "remove" => {
             if input_vec.len() != 2 {
@@ -114,7 +114,45 @@ fn main() {
             let (lines_tx, lines_rx) = LinesCodec::new().framed(socket).split();
 
             let responses = lines_rx.map(move |incomming_message| {
-                parse_string(incomming_message);
+                let (command, parameters) = parse_string(incomming_message);
+                match command {
+                    Command::Error(msg) => {
+                        return msg;
+                    }
+                    Command::Keys => {
+                        let db = database_arc.lock().unwrap();
+                        let keys: Vec<_> = (*db).keys().cloned().collect();
+                        return format!("The database keys are: {:?}\n", keys);
+                    }
+                    Command::Get => {
+                        let key = parameters.unwrap(); //Can safely do this as fisrt match is Error
+                        if key.len() == 1 {
+                            let db = database_arc.lock().unwrap();
+                            let result = (*db).get(&(key[0])).unwrap(); // Error check for n/a val
+                            match result {
+                                Data::Value(val) => {
+                                    return format!("{}\n", val);
+                                }
+                                Data::Map(map) => {
+                                    let keys: Vec<_> = map.keys().cloned().collect();
+                                    return format!(
+                                        "The values stored under {} are: {:?}\n",
+                                        &(key[0]),
+                                        keys
+                                    );
+                                }
+                            }
+                        }
+                    }
+                    Command::SetVal => {
+                        let key = parameters.unwrap(); //Can safely do this as fisrt match is Error
+                        let mut db = database_arc.lock().unwrap();
+                        (*db).insert((*key[0]).to_string(), Data::Value((*key[0]).to_string()));
+                        return format!("Set done.");
+                        // TODO Reformat to set btree too
+                    }
+                    Command::Remove => {}
+                }
                 return "TODO: Return proper message.".to_string();
                 /*
                 match incomming_message.as_ref() {
@@ -123,52 +161,13 @@ fn main() {
                         let keys: Vec<_> = (*db).keys().cloned().collect();
                         return format!("The database keys are: {:?}\n", keys);
                     }
-                    "insert" => {
-                        let mut db = database_arc.lock().unwrap();
-                        (*db).insert("key1".to_string(), Data::Value("value1".to_string()));
-                        return format!("Done?");
-                    }
-                    "get" => {
-                        // fix printing
-                        let db = database_arc.lock().unwrap();
-                        let result = (*db).get(&("key1".to_string())).unwrap();
-                        match result {
-                            Data::Value(val) => {
-                                return format!("{}\n", val);
-                            }
-                            Data::Map(_) => {
-                                return format!("Map"); // Fix proper printing
-                            }
-                        }
-                    }
                     "insertbtree" => {
                         let mut db = database_arc.lock().unwrap();
                         let new_tree: BTreeMap<String, Data> = BTreeMap::new();
                         (*db).insert("Employees".to_string(), Data::Map(new_tree));
                         return format!("Done?");
                     }
-                    "getbtree" => {
-                        let db = database_arc.lock().unwrap();
-                        let result = (*db).get(&("Employees".to_string())).unwrap();
-                        match result {
-                            Data::Value(val) => {
-                                return format!("{}\n", val);
-                            }
-                            Data::Map(map) => {
-                                let keys: Vec<_> = map.keys().cloned().collect();
-                                return format!(
-                                    "The values stored under {} are: {:?}\n",
-                                    "Employees", keys
-                                );
-                            }
-                        }
-                    }
-                    _ => {
-                        return format!("The commands are: insert, get, remove, keys.\n");
-                    }
-                }
-                */
-                //return incomming_message;
+                    */
             });
 
             let writes = responses.fold(lines_tx, |writer, response| {
