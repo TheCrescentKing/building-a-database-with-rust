@@ -26,6 +26,7 @@ enum Command {
     Keys,
     Get,
     SetVal,
+    NewDir,
     Remove,
     Error(String),
 }
@@ -61,12 +62,22 @@ fn parse_string(mut input: String) -> (Command, Option<Vec<String>>) {
         "setval" => {
             if input_vec.len() != 3 {
                 return (
-                    Command::Error("Error: Set receives 2 parameters!".to_string()),
+                    Command::Error("Error: Setval receives 2 parameters!".to_string()),
                     None,
                 );
             }
-            let param_k_v = input_vec[1..2].to_vec();
+            let param_k_v = input_vec[1..2].to_vec(); // TODO Process multiple keys
             return (Command::SetVal, Some(param_k_v));
+        }
+        "newdir" => {
+            if input_vec.len() != 2 {
+                return (
+                    Command::Error("Error: NewDir receives 1 parameter!".to_string()),
+                    None,
+                );
+            }
+            let param_k_v = input_vec[1..2].to_vec(); // TODO Process multiple keys
+            return (Command::NewDir, Some(param_k_v));
         }
         "remove" => {
             if input_vec.len() != 2 {
@@ -142,32 +153,42 @@ fn main() {
                                     );
                                 }
                             }
+                        } else {
+                            // TODO hanlde case when multiple tree keys
                         }
                     }
                     Command::SetVal => {
                         let key = parameters.unwrap(); //Can safely do this as fisrt match is Error
                         let mut db = database_arc.lock().unwrap();
-                        (*db).insert((*key[0]).to_string(), Data::Value((*key[0]).to_string()));
+                        // TODO Reformat to take into account multiple btree keys
+                        (*db).insert((*key[0]).to_string(), Data::Value((*key[1]).to_string()));
                         return format!("Set done.");
-                        // TODO Reformat to set btree too
                     }
-                    Command::Remove => {}
-                }
-                return "TODO: Return proper message.".to_string();
-                /*
-                match incomming_message.as_ref() {
-                    "keys" => {
-                        let db = database_arc.lock().unwrap();
-                        let keys: Vec<_> = (*db).keys().cloned().collect();
-                        return format!("The database keys are: {:?}\n", keys);
-                    }
-                    "insertbtree" => {
+                    Command::NewDir => {
+                        let key = parameters.unwrap();
                         let mut db = database_arc.lock().unwrap();
                         let new_tree: BTreeMap<String, Data> = BTreeMap::new();
-                        (*db).insert("Employees".to_string(), Data::Map(new_tree));
-                        return format!("Done?");
+                        // TODO Reformat to take into account multiple btree keys
+                        (*db).insert((*key[0]).to_string(), Data::Map(new_tree));
+                        return format!("Newdir done.");
                     }
-                    */
+                    Command::Remove => {
+                        let key = parameters.unwrap(); //Can safely do this as fisrt match is Error
+                        if key.len() == 1 {
+                            let mut db = database_arc.lock().unwrap();
+                            let result = (*db).remove(&(key[0])).unwrap(); // Error check for n/a val
+                            match result {
+                                Data::Value(val) => {
+                                    return format!("Removed value: {}\n", val);
+                                }
+                                Data::Map(_) => {
+                                    return format!("Removed directory under: {}\n", &(key[0]));
+                                }
+                            }
+                        }
+                    }
+                }
+                return format!("ERROR: Program reached en of command match without returning!");
             });
 
             let writes = responses.fold(lines_tx, |writer, response| {
