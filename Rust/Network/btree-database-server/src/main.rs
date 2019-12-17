@@ -20,18 +20,37 @@ enum Data {
     Value(String),
 }
 
+fn get_keys(database_arc: &Arc<Mutex<BTreeMap<String, Data>>>) -> Vec<String> {
+    let db = (*database_arc).lock().unwrap();
+    return (*db).keys().cloned().collect();
+}
+
+fn get_value(database_arc: &Arc<Mutex<BTreeMap<String, Data>>>, parameters: Vec<String>) -> Data {
+    // Replace with for loop to handle multiple keys
+    if parameters.len() == 1 {
+        let db = database_arc.lock().unwrap();
+        let result = (*db).get(&(parameters[0])).unwrap(); // Error check for n/a val
+        return *result;
+    } else {
+        // TODO hanlde case when multiple tree keys
+    }
+}
+
+fn set_value() {}
+
+fn remove_value() {}
+
 /*                                      STRING PARSER                                            */
 
 enum Command {
     Keys,
-    Get,
-    SetVal,
-    NewDir,
-    Remove,
+    Get(Option<Vec<String>>),
+    SetValue(Option<Vec<String>>),
+    Remove(Option<Vec<String>>),
     Error(String),
 }
 
-fn parse_string(mut input: String) -> (Command, Option<Vec<String>>) {
+fn parse_string(mut input: String) -> Command {
     trim_newline(&mut input);
     let input_vec = input
         .split(" ") // Split by spaces
@@ -39,61 +58,44 @@ fn parse_string(mut input: String) -> (Command, Option<Vec<String>>) {
         .collect::<Vec<String>>();
 
     if input_vec.len() <= 0 {
-        return (Command::Error("Please input a command!".to_string()), None);
+        return Command::Error("Please input a command!".to_string());
     }
 
     match input_vec[0].to_lowercase().as_str() {
         "keys" => {
-            return (Command::Keys, None);
+            return Command::Keys;
         }
         "get" => {
             if input_vec.len() != 2 {
-                return (
-                    Command::Error("Error: Get receives 1 parameter!".to_string()),
-                    None,
-                );
+                return Command::Error("Error: Get receives 1 parameter!".to_string());
             }
             let param_keys = input_vec[1]
                 .split("/") // Split by slash
                 .map(ToString::to_string)
                 .collect::<Vec<String>>();
-            return (Command::Get, Some(param_keys));
+            return Command::Get(Some(param_keys));
         }
-        "setval" => {
+        "SetValue" => {
             if input_vec.len() != 3 {
-                return (
-                    Command::Error("Error: Setval receives 2 parameters!".to_string()),
-                    None,
-                );
+                return Command::Error("Error: SetValue receives 2 parameters!".to_string());
             }
-            let param_k_v = input_vec[1..2].to_vec(); // TODO Process multiple keys
-            return (Command::SetVal, Some(param_k_v));
-        }
-        "newdir" => {
-            if input_vec.len() != 2 {
-                return (
-                    Command::Error("Error: NewDir receives 1 parameter!".to_string()),
-                    None,
-                );
-            }
-            let param_k_v = input_vec[1..2].to_vec(); // TODO Process multiple keys
-            return (Command::NewDir, Some(param_k_v));
+            let mut param_k_v = input_vec[1]
+                .split("/") // Split by slash
+                .map(ToString::to_string)
+                .collect::<Vec<String>>();
+            param_k_v.push((*input_vec[2]).to_string()); // TODO Process multiple keys
+            println!("{:?}", param_k_v);
+            return Command::SetValue(Some(param_k_v));
         }
         "remove" => {
             if input_vec.len() != 2 {
-                return (
-                    Command::Error("Error: Remove receives 1 parameter!".to_string()),
-                    None,
-                );
+                return Command::Error("Error: Remove receives 1 parameter!".to_string());
             }
             let param_remove_key = vec![input_vec[1].to_string()];
-            return (Command::Remove, Some(param_remove_key));
+            return Command::Remove(Some(param_remove_key));
         }
         _ => {
-            return (
-                Command::Error("Error: Command does not exist.".to_string()),
-                None,
-            )
+            return Command::Error("Error: Command does not exist.".to_string());
         }
     }
 }
@@ -125,54 +127,78 @@ fn main() {
             let (lines_tx, lines_rx) = LinesCodec::new().framed(socket).split();
 
             let responses = lines_rx.map(move |incomming_message| {
-                let (command, parameters) = parse_string(incomming_message);
+                let command = parse_string(incomming_message);
                 match command {
                     Command::Error(msg) => {
                         return msg;
                     }
                     Command::Keys => {
-                        let db = database_arc.lock().unwrap();
-                        let keys: Vec<_> = (*db).keys().cloned().collect();
+                        let keys = get_keys(&database_arc);
                         return format!("The database keys are: {:?}\n", keys);
                     }
-                    Command::Get => {
-                        let key = parameters.unwrap(); //Can safely do this as fisrt match is Error
-                        if key.len() == 1 {
-                            let db = database_arc.lock().unwrap();
-                            let result = (*db).get(&(key[0])).unwrap(); // Error check for n/a val
-                            match result {
-                                Data::Value(val) => {
-                                    return format!("{}\n", val);
-                                }
-                                Data::Map(map) => {
-                                    let keys: Vec<_> = map.keys().cloned().collect();
-                                    return format!(
-                                        "The values stored under {} are: {:?}\n",
-                                        &(key[0]),
-                                        keys
-                                    );
-                                }
+                    Command::Get(parameters) => {
+                        let parameters = parameters.unwrap(); //Can safely do this as fisrt match is Error
+                        let result = get_value(&database_arc, parameters);
+                        match result {
+                            Data::Value(val) => {
+                                return format!("{}\n", val);
                             }
-                        } else {
-                            // TODO hanlde case when multiple tree keys
+                            Data::Map(map) => {
+                                let keys: Vec<_> = map.keys().cloned().collect();
+                                return format!(
+                                    "The values stored under {} are: {:?}\n",
+                                    &(parameters[0]),
+                                    keys
+                                );
+                            }
                         }
                     }
-                    Command::SetVal => {
-                        let key = parameters.unwrap(); //Can safely do this as fisrt match is Error
-                        let mut db = database_arc.lock().unwrap();
-                        // TODO Reformat to take into account multiple btree keys
-                        (*db).insert((*key[0]).to_string(), Data::Value((*key[1]).to_string()));
-                        return format!("Set done.");
+                    Command::SetValue(parameters) => {
+                        // let parameters = parameters.unwrap(); //Can safely do this as fisrt match is Error
+                        // let mut db = database_arc.lock().unwrap();
+                        // if parameters.len() > 2 {
+                        //     for i in 0..(parameters.len() - 1) {
+                        //         let keys: Vec<_> = (*db).keys().cloned().collect();
+                        //         if keys.contains(parameters[i]) {
+                        //             let result = (*db).get(&(parameters[i])).unwrap(); // Error check for n/a val
+                        //             match result {
+                        //                 Data::Map(map) => {
+                        //                     let mut db = map;
+                        //                     continue;
+                        //                 }
+                        //                 Data::Value(_) => {
+                        //                     return format!(
+                        //                         "{Error: Got value when expecting tree}\n"
+                        //                     );
+                        //                 }
+                        //             }
+                        //         } else {
+                        //             for j in i..(parameters.len() - 1) {
+                        //                 let new_tree: BTreeMap<String, Data> = BTreeMap::new();
+                        //                 (*db).insert(
+                        //                     (*parameters[j]).to_string(),
+                        //                     Data::Map(new_tree),
+                        //                 );
+                        //             }
+                        //         }
+                        //     }
+                        // }
+                        // // TODO Reformat to take into account multiple btree keys
+                        // (*db).insert(
+                        //     (*parameters[0]).to_string(),
+                        //     Data::Value((*parameters[1]).to_string()),
+                        // );
+                        // return format!("Set done.");
                     }
-                    Command::NewDir => {
-                        let key = parameters.unwrap();
-                        let mut db = database_arc.lock().unwrap();
-                        let new_tree: BTreeMap<String, Data> = BTreeMap::new();
-                        // TODO Reformat to take into account multiple btree keys
-                        (*db).insert((*key[0]).to_string(), Data::Map(new_tree));
-                        return format!("Newdir done.");
-                    }
-                    Command::Remove => {
+                    // Command::NewDir(parameters) => {
+                    //     let key = parameters.unwrap();
+                    //     let mut db = database_arc.lock().unwrap();
+                    //     let new_tree: BTreeMap<String, Data> = BTreeMap::new();
+                    //     // TODO Reformat to take into account multiple btree keys
+                    //     (*db).insert((*key[0]).to_string(), Data::Map(new_tree));
+                    //     return format!("Newdir done.");
+                    // }
+                    Command::Remove(parameters) => {
                         let key = parameters.unwrap(); //Can safely do this as fisrt match is Error
                         if key.len() == 1 {
                             let mut db = database_arc.lock().unwrap();
