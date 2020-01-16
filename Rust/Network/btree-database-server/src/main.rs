@@ -14,7 +14,7 @@ use tokio::prelude::*;
 use std::collections::BTreeMap;
 
 /*                                      DATABASE RESOURCES                                       */
-
+#[derive(Clone)]
 enum Data {
     Map(BTreeMap<String, Data>),
     Value(String),
@@ -30,9 +30,10 @@ fn get_value(database_arc: &Arc<Mutex<BTreeMap<String, Data>>>, parameters: Vec<
     if parameters.len() == 1 {
         let db = database_arc.lock().unwrap();
         let result = (*db).get(&(parameters[0])).unwrap(); // Error check for n/a val
-        return *result;
+        return (*result).clone();
     } else {
         // TODO hanlde case when multiple tree keys
+        return Data::Value("subsequent btree access not developed.".to_string());
     }
 }
 
@@ -75,7 +76,7 @@ fn parse_string(mut input: String) -> Command {
                 .collect::<Vec<String>>();
             return Command::Get(Some(param_keys));
         }
-        "SetValue" => {
+        "setvalue" => {
             if input_vec.len() != 3 {
                 return Command::Error("Error: SetValue receives 2 parameters!".to_string());
             }
@@ -136,23 +137,28 @@ fn main() {
                         let keys = get_keys(&database_arc);
                         return format!("The database keys are: {:?}\n", keys);
                     }
-                    Command::Get(parameters) => {
-                        let parameters = parameters.unwrap(); //Can safely do this as fisrt match is Error
-                        let result = get_value(&database_arc, parameters);
-                        match result {
-                            Data::Value(val) => {
-                                return format!("{}\n", val);
-                            }
-                            Data::Map(map) => {
-                                let keys: Vec<_> = map.keys().cloned().collect();
-                                return format!(
-                                    "The values stored under {} are: {:?}\n",
-                                    &(parameters[0]),
-                                    keys
-                                );
+                    Command::Get(parameters) => match parameters {
+                        None => {
+                            return format!("That value does not exist!\n");
+                        }
+                        _ => {
+                            let parameters = parameters.unwrap();
+                            let result = get_value(&database_arc, parameters.clone());
+                            match result {
+                                Data::Value(val) => {
+                                    return format!("{}\n", val);
+                                }
+                                Data::Map(map) => {
+                                    let keys: Vec<_> = map.keys().cloned().collect();
+                                    return format!(
+                                        "The values stored under {} are: {:?}\n",
+                                        &(parameters[0]),
+                                        keys
+                                    );
+                                }
                             }
                         }
-                    }
+                    },
                     Command::SetValue(parameters) => {
                         // let parameters = parameters.unwrap(); //Can safely do this as fisrt match is Error
                         // let mut db = database_arc.lock().unwrap();
@@ -214,7 +220,7 @@ fn main() {
                         }
                     }
                 }
-                return format!("ERROR: Program reached en of command match without returning!");
+                return format!("ERROR: Program reached end of command match without returning!");
             });
 
             let writes = responses.fold(lines_tx, |writer, response| {
