@@ -46,6 +46,7 @@ fn get_value(database_arc: &Arc<Mutex<BTreeMap<String, Data>>>, parameters: Vec<
 
 fn set_value(database_arc: &Arc<Mutex<BTreeMap<String, Data>>>, parameters: Vec<String>) -> String {
     let mut db = database_arc.lock().unwrap();
+    let mut sub_db: &BTreeMap<String, Data>;
     if parameters.len() > 2{
         for i in 0..(parameters.len() - 1) {
             let keys: Vec<_> = (*db).keys().cloned().collect();
@@ -53,7 +54,7 @@ fn set_value(database_arc: &Arc<Mutex<BTreeMap<String, Data>>>, parameters: Vec<
                 let result = (*db).get(&(parameters[i])).unwrap(); // Error check for n/a val
                 match result {
                     Data::Map(map) => {
-                        let mut db = map;
+                        sub_db = map;
                         continue;
                     }
                     Data::Value(_) => {
@@ -86,13 +87,20 @@ fn set_value(database_arc: &Arc<Mutex<BTreeMap<String, Data>>>, parameters: Vec<
 fn remove_value(database_arc: &Arc<Mutex<BTreeMap<String, Data>>>, parameters: Vec<String>) -> String {
     if parameters.len() == 1 {
         let mut db = database_arc.lock().unwrap();
-        let result = (*db).remove(&(parameters[0])).unwrap(); // Error check for n/a val
+        let result = (*db).remove(&(parameters[0]));
         match result {
-            Data::Value(val) => {
-                return format!("Removed value: {}\n", val);
+            None => {
+                return format!("That key does not seem to exist!"); // Make error message more explicit.
             }
-            Data::Map(_) => {
-                return format!("Removed directory under: {}\n", &(parameters[0]));
+            Some(removed_data) => {
+                match removed_data {
+                    Data::Value(val) => {
+                        return format!("Removed value: {}\n", val);
+                    }
+                    Data::Map(_) => {
+                        return format!("Removed directory under: {}\n", &(parameters[0]));
+                    }
+                }
             }
         }
     }else{ // TODO: Fix to remove with multiple keys i.e. trees
@@ -107,6 +115,7 @@ enum Command {
     Get(Option<Vec<String>>),
     SetValue(Option<Vec<String>>),
     Remove(Option<Vec<String>>),
+    Exit,
     Error(String),
 }
 
@@ -149,10 +158,13 @@ fn parse_string(mut input: String) -> Command {
         }
         "remove" => {
             if input_vec.len() != 2 {
-                return Command::Error("Error: Remove receives 1 parameter!".to_string());
+                return Command::Error("Error: Remove receives at least 1 parameter!".to_string());
             }
             let param_remove_key = vec![input_vec[1].to_string()];
             return Command::Remove(Some(param_remove_key));
+        }
+        "exit" => {
+            return Command::Exit;
         }
         _ => {
             return Command::Error("Error: Command does not exist.".to_string());
@@ -246,8 +258,11 @@ fn main() {
                             return format!("{}", remove_result);
                         }
                     }
+                    Command::Exit => {
+                        std::process::exit(0);
+                    }
                 }
-                return format!("ERROR: Program reached end of command match without returning!");
+                return format!("ERROR: Program reached end of command match without returning!"); // For debugging.
             });
 
             let writes = responses.fold(lines_tx, |writer, response| {
