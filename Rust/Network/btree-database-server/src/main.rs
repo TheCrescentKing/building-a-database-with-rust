@@ -44,26 +44,10 @@ fn get_value(database_arc: &Arc<Mutex<BTreeMap<String, Data>>>, parameters: Vec<
     }
 }
 
-fn set_value(database_arc: &Arc<Mutex<BTreeMap<String, Data>>>, parameters: Vec<ParameterData>) -> String {
+fn set_value(database_arc: &Arc<Mutex<BTreeMap<String, Data>>>, parameters: SetParameters) -> String {
     let mut db = database_arc.lock().unwrap();
     let mut sub_db: &BTreeMap<String, Data>;
-    let mut key: Option<String> = None;
-    let mut value: Option<String> = None;
-    let mut btree_vector: Option<Vec<String>> = None;
-    for parameter in parameters{
-        match parameter{
-            ParameterData::Key(val) => {
-                key = Some(val);
-            }
-            ParameterData::Value(val) => {
-                value = Some(val);
-            }
-            ParameterData::BTrees(vector) => {
-                btree_vector = Some(vector);
-            }
-        }
-    }
-    if btree_vector.is_some() {
+    if parameters.btrees.len() > 0 {
         // for i in 0..(parameters.len() - 1) {
         //     let keys: Vec<_> = (*db).keys().cloned().collect();
         //     if keys.contains(&parameters[i]) {
@@ -89,7 +73,8 @@ fn set_value(database_arc: &Arc<Mutex<BTreeMap<String, Data>>>, parameters: Vec<
         // }
     }
     // TODO Reformat to take into account multiple btree keys
-    let insert_result = (*db).insert(key.unwrap(), Data::Value(value.unwrap())); // TODO Add safety check for unwrap even though it should NEVER be None
+    println!("key: {}, value: {}, btrees: {:?}", parameters.key, parameters.value, parameters.btrees);
+    let insert_result = (*db).insert(parameters.key, Data::Value(parameters.value)); // TODO Add safety check for unwrap even though it should NEVER be None
     match insert_result {
         None => {
             return format!("Value set.");
@@ -128,17 +113,17 @@ fn remove_value(database_arc: &Arc<Mutex<BTreeMap<String, Data>>>, parameters: V
 
 enum Command {
     Keys,
-    Get(Option<Vec<String>>),
-    SetValue(Option<Vec<ParameterData>>),
-    Remove(Option<Vec<String>>),
+    Get(Vec<String>),
+    SetValue(SetParameters), // TODO make into a struct
+    Remove(Vec<String>),
     Exit,
     Error(String),
 }
 
-enum ParameterData{
-    Key(String),
-    BTrees(Vec<String>),
-    Value(String)
+struct SetParameters {
+    key: String,
+    value: String,
+    btrees: Vec<String>,
 }
 
 fn parse_string(mut input: String) -> Command {
@@ -164,22 +149,24 @@ fn parse_string(mut input: String) -> Command {
                 .split("/") // Split by slash
                 .map(ToString::to_string)
                 .collect::<Vec<String>>();
-            return Command::Get(Some(param_keys));
+            return Command::Get(param_keys);
         }
         "setvalue" => {
             if input_vec.len() != 3 {
                 return Command::Error("Error: SetValue receives 2 parameters!".to_string());
             }
-            let mut command_parameters: Vec<ParameterData> = vec!();
+            let mut key = "".to_string();
+            let mut btrees = vec!();
+            let value = (*input_vec[2]).to_string();
             if (input_vec[1]).contains("/") {
                 match (input_vec[1]).pop() {
                     Some('/') => {
-                        let mut param_directories = input_vec[1]
+                        let param_directories = input_vec[1]
                             .split("/") // Split by slash
                             .map(ToString::to_string)
                             .collect::<Vec<String>>();
-                        command_parameters.push(ParameterData::BTrees(param_directories));
-                        command_parameters.push(ParameterData::Key("".to_string()));
+                        btrees = param_directories;
+                        key = "".to_string();
                     },
                     Some(char) => {
                         input_vec[1].push(char);
@@ -187,25 +174,25 @@ fn parse_string(mut input: String) -> Command {
                             .split("/") // Split by slash
                             .map(ToString::to_string)
                             .collect::<Vec<String>>();
-                        command_parameters.push(ParameterData::Key(param_directories.pop().unwrap());
-                        command_parameters.push(ParameterData::BTrees(param_directories));
+                        key = param_directories.pop().unwrap();
+                        btrees = param_directories;
                     },
                     None => {
                         return Command::Error("Error: Set command should have directory or value data!!".to_string());
                     }
                 }
+            }else{
+                key = input_vec[1].clone();
             }
-
-            command_parameters.push(ParameterData::Value((*input_vec[2]).to_string()));
-
-            return Command::SetValue(Some(command_parameters));
+            let parsed_values = SetParameters {key, value, btrees};
+            return Command::SetValue(parsed_values);
         }
         "remove" => {
             if input_vec.len() != 2 {
                 return Command::Error("Error: Remove receives at least 1 parameter!".to_string());
             }
             let param_remove_key = vec![input_vec[1].to_string()];
-            return Command::Remove(Some(param_remove_key));
+            return Command::Remove(param_remove_key);
         }
         "exit" => {
             return Command::Exit;
@@ -252,38 +239,28 @@ fn main() {
                         let keys = get_keys(&database_arc);
                         return format!("The database keys are: {:?}\n", keys);
                     }
-                    Command::Get(parameters) => match parameters {
-                        None => {
-                            return format!("That value does not exist!\n");
-                        }
-                        Some(param_unwrapped) => {
-                            let result = get_value(&database_arc, param_unwrapped.clone());
-                            match result {
-                                Data::Value(val) => {
-                                    if val.is_empty(){
-                                        return format!("No values are stored for '{}'.\n", param_unwrapped[0]);
-                                    }
-                                    return format!("{}\n", val);
+                    Command::Get(parameters) => {
+                        let result = get_value(&database_arc, parameters.clone());
+                        match result {
+                            Data::Value(val) => {
+                                if val.is_empty(){
+                                    return format!("No values are stored for '{}'.\n", parameters[0]);
                                 }
-                                Data::Map(map) => {
-                                    let keys: Vec<_> = map.keys().cloned().collect();
-                                    return format!(
-                                        "The values stored under {} are: {:?}\n",
-                                        &(param_unwrapped[0]),
-                                        keys
-                                    );
-                                }
+                                return format!("{}\n", val);
+                            }
+                            Data::Map(map) => {
+                                let keys: Vec<_> = map.keys().cloned().collect();
+                                return format!(
+                                    "The values stored under {} are: {:?}\n",
+                                    &(parameters[0]),
+                                    keys
+                                );
                             }
                         }
                     },
-                    Command::SetValue(parameters) => match parameters {
-                        None => {
-                            return format!("No parameters entered for setvalue!\n");
-                        }
-                        Some(param_unwrapped) => {
-                            let set_result = set_value(&database_arc, param_unwrapped);
-                            return format!("{}", set_result);
-                        }
+                    Command::SetValue(parameters) => {
+                        let set_result = set_value(&database_arc, parameters);
+                        return format!("{}", set_result);
                     }
                     // Command::NewDir(parameters) => {
                     //     let key = parameters.unwrap();
@@ -293,20 +270,14 @@ fn main() {
                     //     (*db).insert((*key[0]).to_string(), Data::Map(new_tree));
                     //     return format!("Newdir done.");
                     // }
-                    Command::Remove(parameters) => match parameters {
-                        None => {
-                            return format!("No parameters entered for setvalue!\n");
-                        }
-                        Some(param_unwrapped) => {
-                            let remove_result = remove_value(&database_arc, param_unwrapped.clone());
+                    Command::Remove(parameters) => {
+                            let remove_result = remove_value(&database_arc, parameters);
                             return format!("{}", remove_result);
-                        }
                     }
                     Command::Exit => {
                         std::process::exit(0);
                     }
                 }
-                return format!("ERROR: Program reached end of command match without returning!"); // For debugging.
             });
 
             let writes = responses.fold(lines_tx, |writer, response| {
