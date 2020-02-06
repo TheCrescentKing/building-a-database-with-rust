@@ -51,7 +51,7 @@ fn set_value(database_arc: &mut Arc<Mutex<BTreeMap<String, Data>>>, parameters: 
     if parameters.btrees.len() > 0 {
         for tree in parameters.btrees{
             match (*sub_db).entry(tree.clone()){
-                Occupied(mut entry) => {
+                Occupied(entry) => {
                     match entry.into_mut() {
                         Data::Map(map) => {
                             sub_db = map;
@@ -63,7 +63,9 @@ fn set_value(database_arc: &mut Arc<Mutex<BTreeMap<String, Data>>>, parameters: 
                     }
                 },
                 Vacant(entry) => {
-                    entry.insert(Data::Map(BTreeMap::<String, Data>::new()));
+                    sub_db = &mut BTreeMap::<String, Data>::new();
+                    entry.insert(Data::Map(*sub_db));
+                    continue;
                 }
             }
         }
