@@ -12,7 +12,6 @@ use tokio::prelude::*;
 
 // import BTreeMap
 use std::collections::BTreeMap;
-use std::collections::btree_map::Entry::*;
 
 /*                                      DATABASE RESOURCES                                       */
 #[derive(Clone)]
@@ -45,57 +44,57 @@ fn get_value(database_arc: &Arc<Mutex<BTreeMap<String, Data>>>, parameters: Vec<
     }
 }
 
-fn set_value(database_arc: &mut Arc<Mutex<BTreeMap<String, Data>>>, parameters: SetParameters) -> String {
-    let mut db = database_arc.lock().unwrap();
-    let mut sub_db = &mut (*db);
+fn set_value(database_arc: &Arc<Mutex<BTreeMap<String, Data>>>, parameters: SetParameters) -> String {
+
+    let mut locked_db = database_arc.lock().unwrap();
+    let mut last_new_tree = & BTreeMap::new();
+    let mut has_tree_been_added: bool = false;
+
     if parameters.btrees.len() > 0 {
-        for tree in parameters.btrees{
-            match (*sub_db).entry(tree.clone()){
-                Occupied(mut entry) => {
-                    match entry.into_mut() {
-                        Data::Map(map) => {
-                            sub_db = map;
-                            continue;
-                        }
-                        Data::Value(_) => {
-                            return format!("Error: Got value when expecting tree.\n");
-                        }
-                    }
-                },
-                Vacant(entry) => {
-                    entry.insert(Data::Map(BTreeMap::<String, Data>::new()));
+        let keys: Vec<_> = (*locked_db).keys().cloned().collect();
+        if keys.contains(&parameters.btrees[0]) {  // Does the key exist?
+            let result = &mut (*locked_db).get(&parameters.btrees[0]).unwrap(); // Can unwrap safely as we checked the value exists in the if statement
+            match result {
+                Data::Map(map) => {
+                    last_new_tree = &map;
+                    has_tree_been_added = true;
+                }
+                Data::Value(_) => {
+                    return format!("Error: Got value when expecting tree.\n");
                 }
             }
+        } else { // If key doesn't exist then create as a new BTree as well as all subsequent keys
+
+            let mut new_tree = &mut BTreeMap::new(); // Create the first tree
+
+            (*locked_db).insert(
+                parameters.btrees[0].to_string(),
+                Data::Map(*new_tree),
+            );
+
+            let mut current_tree = new_tree;
+
+            for j in 1..(parameters.btrees.len() - 1) { // Create all remaining trees
+                let mut new_tree = &BTreeMap::new();
+
+                (current_tree).insert(
+                    parameters.btrees[j].to_string(),
+                    Data::Map(*new_tree),
+                );
+                current_tree = &mut new_tree;
+            }
+            last_new_tree = current_tree;
+            has_tree_been_added = true;
         }
     }
-    // if parameters.btrees.len() > 0 {
-    //     for i in 0..(parameters.btrees.len() - 1) {
-    //         let keys: Vec<_> = (*sub_db).keys().cloned().collect();
-    //         if keys.contains(&parameters.btrees[i]) {
-    //             let result = (*sub_db).get(&(parameters.btrees[i])).unwrap(); // Error check for n/a val
-    //             match result {
-    //                 Data::Map(map) => {
-    //                     sub_db = map;
-    //                     continue;
-    //                 }
-    //                 Data::Value(_) => {
-    //                     return format!("Error: Got value when expecting tree.\n");
-    //                 }
-    //             }
-    //         } else {
-    //             for j in i..(parameters.btrees.len() - 1) {
-    //                 let new_tree: BTreeMap<String, Data> = BTreeMap::new();
-    //                 (*sub_db).insert(
-    //                     (*parameters.btrees[j]).to_string(),
-    //                     Data::Map(new_tree),
-    //                 );
-    //             }
-    //         }
-    //     }
-    // }
-    // TODO Reformat to take into account multiple btree keys
-    //println!("key: {}, value: {}, btrees: {:?}", parameters.key, parameters.value, parameters.btrees);
-    let insert_result = (*sub_db).insert(parameters.key, Data::Value(parameters.value)); // TODO Add safety check for unwrap even though it should NEVER be None
+
+    let mut insert_result = None;
+
+    if has_tree_been_added{
+        insert_result = (last_new_tree).insert(parameters.key, Data::Value(parameters.value)); // TODO Add safety check for unwrap even though it should NEVER be None
+    }else{
+        insert_result = (*locked_db).insert(parameters.key, Data::Value(parameters.value)); // TODO Add safety check for unwrap even though it should NEVER be None
+    }
     match insert_result {
         None => {
             return format!("Value set.");
@@ -247,7 +246,7 @@ fn main() {
         .incoming()
         .map_err(|e| println!("failed to accept socket; error = {:?}", e))
         .for_each(move |socket| {
-            let mut database_arc = Arc::clone(&database_arc);
+            let database_arc = Arc::clone(&database_arc);
             let (lines_tx, lines_rx) = LinesCodec::new().framed(socket).split();
 
             let responses = lines_rx.map(move |incomming_message| {
@@ -280,7 +279,7 @@ fn main() {
                         }
                     },
                     Command::SetValue(parameters) => {
-                        let set_result = set_value(&mut database_arc, parameters);
+                        let set_result = set_value(&database_arc, parameters);
                         return format!("{}", set_result);
                     }
                     // Command::NewDir(parameters) => {
