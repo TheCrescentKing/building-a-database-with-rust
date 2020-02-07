@@ -63,40 +63,20 @@ fn set_value(database_arc: &mut Arc<Mutex<BTreeMap<String, Data>>>, parameters: 
                     }
                 },
                 Vacant(entry) => {
-                    sub_db = &mut BTreeMap::<String, Data>::new();
-                    entry.insert(Data::Map(*sub_db));
-                    continue;
+                    match entry.insert(Data::Map(BTreeMap::<String, Data>::new())){
+                        Data::Map(map) => {
+                            sub_db = map;
+                            continue;
+                        }
+                        Data::Value(_) => {
+                            return format!("Error: Got value when expecting tree.\n");
+                        }
+                    }
                 }
             }
         }
     }
-    // if parameters.btrees.len() > 0 {
-    //     for i in 0..(parameters.btrees.len() - 1) {
-    //         let keys: Vec<_> = (*sub_db).keys().cloned().collect();
-    //         if keys.contains(&parameters.btrees[i]) {
-    //             let result = (*sub_db).get(&(parameters.btrees[i])).unwrap(); // Error check for n/a val
-    //             match result {
-    //                 Data::Map(map) => {
-    //                     sub_db = map;
-    //                     continue;
-    //                 }
-    //                 Data::Value(_) => {
-    //                     return format!("Error: Got value when expecting tree.\n");
-    //                 }
-    //             }
-    //         } else {
-    //             for j in i..(parameters.btrees.len() - 1) {
-    //                 let new_tree: BTreeMap<String, Data> = BTreeMap::new();
-    //                 (*sub_db).insert(
-    //                     (*parameters.btrees[j]).to_string(),
-    //                     Data::Map(new_tree),
-    //                 );
-    //             }
-    //         }
-    //     }
-    // }
-    // TODO Reformat to take into account multiple btree keys
-    //println!("key: {}, value: {}, btrees: {:?}", parameters.key, parameters.value, parameters.btrees);
+    
     let insert_result = (*sub_db).insert(parameters.key, Data::Value(parameters.value)); // TODO Add safety check for unwrap even though it should NEVER be None
     match insert_result {
         None => {
