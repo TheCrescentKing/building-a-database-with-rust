@@ -26,32 +26,52 @@ fn get_keys(database_arc: &Arc<Mutex<BTreeMap<String, Data>>>) -> Vec<String> {
     return (*db).keys().cloned().collect();
 }
 
-fn get_value(database_arc: &Arc<Mutex<BTreeMap<String, Data>>>, parameters: Vec<String>) -> Data {
-    // Replace with for loop to handle multiple keys
-    if parameters.len() == 1 {
-        let db = database_arc.lock().unwrap();
-        let result = (*db).get(&(parameters[0])); // Error check for n/a val
-        match result {
-            None => {
-                return Data::Value("".to_string());
-            }
-            Some(_) => {
-                return (*(result.unwrap())).clone();
+fn get_value(database_arc: &Arc<Mutex<BTreeMap<String, Data>>>, parameters: Vec<String>) -> Result<Data, String> {
+
+    let db = database_arc.lock().unwrap();
+    let mut sub_db = &(*db);
+    if parameters.len() > 0{
+        for i in 0..(parameters.len() -1){
+            let key = &(parameters[i]);
+            let result = (*sub_db).get(key);
+            match result{
+                None => {
+                    return Err(format!("Error: the tree for key {}, does not exist.", key));
+                }
+                Some(data) => {
+                    match data {
+                        Data::Value(_) => {
+                            return Err(format!("Error: the key {}, is a value and not a tree!", key));
+                        }
+                        Data::Map(map) => {
+                            sub_db = map;
+                            continue;
+                        }
+                    }
+                }
             }
         }
-    } else {
-        // TODO hanlde case when multiple tree keys
-        return Data::Value("subsequent btree access not developed.".to_string());
+    }
+
+    let key = &parameters[parameters.len()-1];
+
+    match (*sub_db).get(key) {
+        None => {
+            return Err(format!("Error: the key {}, does not have a value.", key));
+        }
+        Some(data) => {
+            return Ok(data.clone());
+        }
     }
 }
 
 fn set_value(database_arc: &mut Arc<Mutex<BTreeMap<String, Data>>>, parameters: SetParameters) -> String {
     let mut db = database_arc.lock().unwrap();
-    let mut sub_db = &mut (*db);
+    let mut sub_db = &mut (*db); // BTree variable for loop where we borrow the root as mutable
     if parameters.btrees.len() > 0 {
-        for tree in parameters.btrees{
-            match (*sub_db).entry(tree.clone()){
-                Occupied(entry) => {
+        for tree in parameters.btrees{ // Loop through all the BTree keys
+            match (*sub_db).entry(tree){ // Use Entry API Pattern
+                Occupied(entry) => { //  If the BTree exists set the loop variable to it
                     match entry.into_mut() {
                         Data::Map(map) => {
                             sub_db = map;
@@ -62,7 +82,7 @@ fn set_value(database_arc: &mut Arc<Mutex<BTreeMap<String, Data>>>, parameters: 
                         }
                     }
                 },
-                Vacant(entry) => {
+                Vacant(entry) => { // If the BTree does not exist create a new one and point the loop variable to it
                     match entry.insert(Data::Map(BTreeMap::<String, Data>::new())){
                         Data::Map(map) => {
                             sub_db = map;
@@ -76,7 +96,8 @@ fn set_value(database_arc: &mut Arc<Mutex<BTreeMap<String, Data>>>, parameters: 
             }
         }
     }
-    
+
+    // Finally, add the key Value pair the the desired BTree represented by sub_db
     let insert_result = (*sub_db).insert(parameters.key, Data::Value(parameters.value)); // TODO Add safety check for unwrap even though it should NEVER be None
     match insert_result {
         None => {
@@ -158,7 +179,7 @@ fn parse_string(mut input: String) -> Command {
             if input_vec.len() != 3 {
                 return Command::Error("Error: SetValue receives 2 parameters!".to_string());
             }
-            let mut key = "".to_string();
+            let key: String;
             let mut btrees = vec!();
             let value = (*input_vec[2]).to_string();
             if (input_vec[1]).contains("/") {
@@ -245,19 +266,19 @@ fn main() {
                     Command::Get(parameters) => {
                         let result = get_value(&database_arc, parameters.clone());
                         match result {
-                            Data::Value(val) => {
-                                if val.is_empty(){
-                                    return format!("No values are stored for '{}'.\n", parameters[0]);
+                            Err(error_string) => {
+                                return format!("{}", error_string);
+                            },
+                            Ok(data) => {
+                                match data {
+                                    Data::Value(val) => {
+                                        return format!("{}\n", val);
+                                    }
+                                    Data::Map(map) => {
+                                        let keys: Vec<_> = map.keys().cloned().collect();
+                                        return format!("The keys of the requested tree are: {:?}\n", keys);
+                                    }
                                 }
-                                return format!("{}\n", val);
-                            }
-                            Data::Map(map) => {
-                                let keys: Vec<_> = map.keys().cloned().collect();
-                                return format!(
-                                    "The values stored under {} are: {:?}\n",
-                                    &(parameters[0]),
-                                    keys
-                                );
                             }
                         }
                     },
@@ -265,14 +286,6 @@ fn main() {
                         let set_result = set_value(&mut database_arc, parameters);
                         return format!("{}", set_result);
                     }
-                    // Command::NewDir(parameters) => {
-                    //     let key = parameters.unwrap();
-                    //     let mut db = database_arc.lock().unwrap();
-                    //     let new_tree: BTreeMap<String, Data> = BTreeMap::new();
-                    //     // TODO Reformat to take into account multiple btree keys
-                    //     (*db).insert((*key[0]).to_string(), Data::Map(new_tree));
-                    //     return format!("Newdir done.");
-                    // }
                     Command::Remove(parameters) => {
                             let remove_result = remove_value(&database_arc, parameters);
                             return format!("{}", remove_result);
