@@ -110,27 +110,73 @@ fn set_value(database_arc: &mut Arc<Mutex<BTreeMap<String, Data>>>, parameters: 
 }
 
 fn remove_value(database_arc: &Arc<Mutex<BTreeMap<String, Data>>>, parameters: Vec<String>) -> String {
-    if parameters.len() == 1 {
-        let mut db = database_arc.lock().unwrap();
-        let result = (*db).remove(&(parameters[0]));
-        match result {
-            None => {
-                return format!("That key does not seem to exist!"); // Make error message more explicit.
-            }
-            Some(removed_data) => {
-                match removed_data {
-                    Data::Value(val) => {
-                        return format!("Removed value: {}\n", val);
-                    }
-                    Data::Map(_) => {
-                        return format!("Removed directory under: {}\n", &(parameters[0]));
+
+    let mut db = database_arc.lock().unwrap();
+    let mut sub_db = &mut (*db);
+    if parameters.len() > 0{
+        for i in 0..(parameters.len() -1){
+            let key = &(parameters[i]);
+            let result = (*sub_db).get_mut(key);
+            match result{
+                None => {
+                    return format!("Error: the tree for key {}, does not exist.", key);
+                }
+                Some(data) => {
+                    match data {
+                        Data::Value(_) => {
+                            return format!("Error: the key {}, is a value and not a tree!", key);
+                        }
+                        Data::Map(map) => {
+                            sub_db = map;
+                            continue;
+                        }
                     }
                 }
             }
         }
-    }else{ // TODO: Fix to remove with multiple keys i.e. trees
-        return format!("Error: Remove has more than 1 parameter!. Feature not implemented.")
     }
+
+    let key = &parameters[parameters.len()-1];
+
+    println!("Key: {}, TreeKeys: {:?}", key, (*sub_db).keys());
+
+    match (*sub_db).remove(key) {
+        None => {
+            return format!("That key does not seem to exist!"); // Make error message more explicit.
+        }
+        Some(removed_data) => {
+            match removed_data {
+                Data::Value(val) => {
+                    return format!("Removed value: {}\n", val);
+                }
+                Data::Map(_) => {
+                    return format!("Removed directory under: {}\n", &(parameters[0]));
+                }
+            }
+        }
+    }
+
+    // if parameters.len() == 1 {
+    //     let mut db = database_arc.lock().unwrap();
+    //     let result = (*db).remove(&(parameters[0]));
+    //     match result {
+    //         None => {
+    //             return format!("That key does not seem to exist!"); // Make error message more explicit.
+    //         }
+    //         Some(removed_data) => {
+    //             match removed_data {
+    //                 Data::Value(val) => {
+    //                     return format!("Removed value: {}\n", val);
+    //                 }
+    //                 Data::Map(_) => {
+    //                     return format!("Removed directory under: {}\n", &(parameters[0]));
+    //                 }
+    //             }
+    //         }
+    //     }
+    // }else{ // TODO: Fix to remove with multiple keys i.e. trees
+    //     return format!("Error: Remove has more than 1 parameter!. Feature not implemented.")
+    // }
 }
 
 /*                                      STRING PARSER                                            */
@@ -213,10 +259,13 @@ fn parse_string(mut input: String) -> Command {
         }
         "remove" => {
             if input_vec.len() != 2 {
-                return Command::Error("Error: Remove receives at least 1 parameter!".to_string());
+                return Command::Error("Error: Remove receives 1 parameter!".to_string());
             }
-            let param_remove_key = vec![input_vec[1].to_string()];
-            return Command::Remove(param_remove_key);
+            let param_keys = input_vec[1]
+                .split("/") // Split by slash
+                .map(ToString::to_string)
+                .collect::<Vec<String>>();
+            return Command::Remove(param_keys);
         }
         "exit" => {
             return Command::Exit;
