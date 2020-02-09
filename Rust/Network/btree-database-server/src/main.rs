@@ -1,18 +1,23 @@
 extern crate tokio;
 
+// Imports for database reference counter, mutex and lock
 use std::sync::Arc;
 use std::sync::Mutex;
 
+// For parsing client input
 use tokio::codec::Decoder;
 use tokio::codec::LinesCodec;
 
-//use tokio::io;
+// For Tokio server
 use tokio::net::TcpListener;
 use tokio::prelude::*;
 
 // import BTreeMap
 use std::collections::BTreeMap;
 use std::collections::btree_map::Entry::*;
+
+// Imports for file writing
+use std::fs::OpenOptions;
 
 /*                                      DATABASE RESOURCES                                       */
 #[derive(Clone)]
@@ -155,28 +160,6 @@ fn remove_value(database_arc: &Arc<Mutex<BTreeMap<String, Data>>>, parameters: V
             }
         }
     }
-
-    // if parameters.len() == 1 {
-    //     let mut db = database_arc.lock().unwrap();
-    //     let result = (*db).remove(&(parameters[0]));
-    //     match result {
-    //         None => {
-    //             return format!("That key does not seem to exist!"); // Make error message more explicit.
-    //         }
-    //         Some(removed_data) => {
-    //             match removed_data {
-    //                 Data::Value(val) => {
-    //                     return format!("Removed value: {}\n", val);
-    //                 }
-    //                 Data::Map(_) => {
-    //                     return format!("Removed directory under: {}\n", &(parameters[0]));
-    //                 }
-    //             }
-    //         }
-    //     }
-    // }else{ // TODO: Fix to remove with multiple keys i.e. trees
-    //     return format!("Error: Remove has more than 1 parameter!. Feature not implemented.")
-    // }
 }
 
 /*                                      STRING PARSER                                            */
@@ -285,6 +268,20 @@ fn trim_newline(s: &mut String) {
     }
 }
 
+/*                                      FILE WRITER                                              */
+
+fn save_to_file(string_to_save: &String, name_of_file: &str) {
+    let mut file = OpenOptions::new()
+    .append(true)
+    .create(true)
+    .open(name_of_file)
+    .unwrap();
+
+    if let Err(e) = writeln!(file, "{}", string_to_save) {
+        eprintln!("Couldn't write to log-file: {}", e);
+    }
+}
+
 /*                                      SERVER RESOURCES                                         */
 
 fn main() {
@@ -303,6 +300,7 @@ fn main() {
             let (lines_tx, lines_rx) = LinesCodec::new().framed(socket).split();
 
             let responses = lines_rx.map(move |incomming_message| {
+                save_to_file(&incomming_message, "log.txt");
                 let command = parse_string(incomming_message);
                 match command {
                     Command::Error(msg) => {
