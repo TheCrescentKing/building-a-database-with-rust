@@ -300,17 +300,20 @@ fn main() {
             let (lines_tx, lines_rx) = LinesCodec::new().framed(socket).split();
 
             let responses = lines_rx.map(move |incomming_message| {
-                save_to_file(&incomming_message, "log.txt");
-                let command = parse_string(incomming_message);
+                let command = parse_string(incomming_message.clone());
                 match command {
                     Command::Error(msg) => {
                         return msg;
                     }
                     Command::Keys => {
+                        save_to_file(&incomming_message, "log.txt");
+
                         let keys = get_keys(&database_arc);
                         return format!("The database keys are: {:?}\n", keys);
                     }
                     Command::Get(parameters) => {
+                        save_to_file(&incomming_message, "log.txt");
+
                         let result = get_value(&database_arc, parameters.clone());
                         match result {
                             Err(error_string) => {
@@ -330,12 +333,16 @@ fn main() {
                         }
                     },
                     Command::SetValue(parameters) => {
+                        save_to_file(&incomming_message, "log.txt");
+
                         let set_result = set_value(&mut database_arc, parameters);
                         return format!("{}", set_result);
                     }
                     Command::Remove(parameters) => {
-                            let remove_result = remove_value(&database_arc, parameters);
-                            return format!("{}", remove_result);
+                        save_to_file(&incomming_message, "log.txt");
+
+                        let remove_result = remove_value(&database_arc, parameters);
+                        return format!("{}", remove_result);
                     }
                     Command::Exit => {
                         std::process::exit(0);
