@@ -167,7 +167,7 @@ fn remove_value(database_arc: &Arc<Mutex<BTreeMap<String, Data>>>, parameters: V
 enum Command {
     Keys,
     Get(Vec<String>),
-    SetValue(SetParameters), // TODO make into a struct
+    SetValue(SetParameters),
     Remove(Vec<String>),
     Exit,
     Error(String),
@@ -284,6 +284,60 @@ fn save_to_file(string_to_save: &String, name_of_file: &str) {
 
 /*                                      SERVER RESOURCES                                         */
 
+fn send_db_command_get_reponse(command: Command, mut database_arc: &mut Arc<Mutex<BTreeMap<String, Data>>>) -> (String, bool){
+    // To know if we should write to log or not
+    let is_valid_command;
+    if let Command::Error(_) = command{
+        is_valid_command = false;
+    }else{
+        is_valid_command = true;
+    }
+
+    let query_result: String;
+
+    match command {
+        Command::Error(msg) => {
+            query_result = msg;
+        }
+        Command::Keys => {
+            let keys = get_keys(&database_arc);
+            query_result = format!("The database keys are: {:?}\n", keys);
+        }
+        Command::Get(parameters) => {
+            let result = get_value(&database_arc, parameters.clone());
+            match result {
+                Err(error_string) => {
+                    query_result = format!("{}", error_string);
+                },
+                Ok(data) => {
+                    match data {
+                        Data::Value(val) => {
+                            query_result = format!("{}\n", val);
+                        }
+                        Data::Map(map) => {
+                            let keys: Vec<_> = map.keys().cloned().collect();
+                            query_result = format!("The keys of the requested tree are: {:?}\n", keys);
+                        }
+                    }
+                }
+            }
+        },
+        Command::SetValue(parameters) => {
+            let set_result = set_value(&mut database_arc, parameters);
+            query_result = format!("{}", set_result);
+        }
+        Command::Remove(parameters) => {
+            let remove_result = remove_value(&database_arc, parameters);
+            query_result = format!("{}", remove_result);
+        }
+        Command::Exit => {
+            std::process::exit(0);
+        }
+    }
+
+    return (query_result, is_valid_command);
+}
+
 fn main() {
     let addr = "127.0.0.1:6142".parse().unwrap();
     let listener = TcpListener::bind(&addr).unwrap();
@@ -301,53 +355,11 @@ fn main() {
 
             let responses = lines_rx.map(move |incomming_message| {
                 let command = parse_string(incomming_message.clone());
-                match command {
-                    Command::Error(msg) => {
-                        return msg;
-                    }
-                    Command::Keys => {
-                        save_to_file(&incomming_message, "log.txt");
-
-                        let keys = get_keys(&database_arc);
-                        return format!("The database keys are: {:?}\n", keys);
-                    }
-                    Command::Get(parameters) => {
-                        save_to_file(&incomming_message, "log.txt");
-
-                        let result = get_value(&database_arc, parameters.clone());
-                        match result {
-                            Err(error_string) => {
-                                return format!("{}", error_string);
-                            },
-                            Ok(data) => {
-                                match data {
-                                    Data::Value(val) => {
-                                        return format!("{}\n", val);
-                                    }
-                                    Data::Map(map) => {
-                                        let keys: Vec<_> = map.keys().cloned().collect();
-                                        return format!("The keys of the requested tree are: {:?}\n", keys);
-                                    }
-                                }
-                            }
-                        }
-                    },
-                    Command::SetValue(parameters) => {
-                        save_to_file(&incomming_message, "log.txt");
-
-                        let set_result = set_value(&mut database_arc, parameters);
-                        return format!("{}", set_result);
-                    }
-                    Command::Remove(parameters) => {
-                        save_to_file(&incomming_message, "log.txt");
-
-                        let remove_result = remove_value(&database_arc, parameters);
-                        return format!("{}", remove_result);
-                    }
-                    Command::Exit => {
-                        std::process::exit(0);
-                    }
+                let (query_result, is_valid_command) = send_db_command_get_reponse(command, &mut database_arc);
+                if is_valid_command{
+                    save_to_file(&incomming_message, "log.txt");
                 }
+                return query_result;
             });
 
             let writes = responses.fold(lines_tx, |writer, response| {
