@@ -16,8 +16,17 @@ use tokio::prelude::*;
 use std::collections::BTreeMap;
 use std::collections::btree_map::Entry::*;
 
-// Imports for file writing
+// Imports for file reading/writing
+use std::{
+    fs::File,
+    io::{prelude::*, BufReader},
+    path::Path,
+};
+
 use std::fs::OpenOptions;
+
+/*                                      CONSTANTS                                                */
+static LOG_FILE: &str = "log.txt";
 
 /*                                      DATABASE RESOURCES                                       */
 #[derive(Clone)]
@@ -282,6 +291,28 @@ fn save_to_file(string_to_save: &String, name_of_file: &str) {
     }
 }
 
+/*                                      FILE READER                                              */
+
+fn lines_from_file(filename: impl AsRef<Path>) -> Vec<String> {
+    let file = File::open(filename).expect("no such file");
+    let buf = BufReader::new(file);
+    buf.lines()
+        .map(|l| l.expect("Could not parse line"))
+        .collect()
+}
+
+/*                            RESTORING DATABASE FROM FILE                                       */
+
+fn restore_database_from_log(filename: &str, mut database_arc: &mut Arc<Mutex<BTreeMap<String, Data>>>){
+    let file_lines = lines_from_file(filename);
+    if !file_lines.is_empty() {
+        for line in file_lines{
+            let command = parse_string(line);
+            send_db_command_get_reponse(command, &mut database_arc);
+        }
+    }
+}
+
 /*                                      SERVER RESOURCES                                         */
 
 fn send_db_command_get_reponse(command: Command, mut database_arc: &mut Arc<Mutex<BTreeMap<String, Data>>>) -> (String, bool){
@@ -351,13 +382,16 @@ fn main() {
         .map_err(|e| println!("failed to accept socket; error = {:?}", e))
         .for_each(move |socket| {
             let mut database_arc = Arc::clone(&database_arc);
+
+            restore_database_from_log(LOG_FILE, &mut database_arc);
+
             let (lines_tx, lines_rx) = LinesCodec::new().framed(socket).split();
 
             let responses = lines_rx.map(move |incomming_message| {
                 let command = parse_string(incomming_message.clone());
                 let (query_result, is_valid_command) = send_db_command_get_reponse(command, &mut database_arc);
                 if is_valid_command{
-                    save_to_file(&incomming_message, "log.txt");
+                    save_to_file(&incomming_message, LOG_FILE);
                 }
                 return query_result;
             });
