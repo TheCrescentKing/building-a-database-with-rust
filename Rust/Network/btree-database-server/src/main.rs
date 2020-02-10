@@ -294,8 +294,11 @@ fn save_to_file(string_to_save: &String, name_of_file: &str) {
 /*                                      FILE READER                                              */
 
 fn lines_from_file(filename: impl AsRef<Path>) -> Vec<String> {
-    let file = File::open(filename).expect("no such file");
-    let buf = BufReader::new(file);
+    let file = File::open(filename);
+    if let Err(_) = file{
+        return vec!();
+    }
+    let buf = BufReader::new(file.unwrap());
     buf.lines()
         .map(|l| l.expect("Could not parse line"))
         .collect()
