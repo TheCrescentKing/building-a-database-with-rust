@@ -1,6 +1,19 @@
 keys
-setvalue Tree/Branch/Leaf node
+setvalue Tree/Branhc/Leaf node
+get Tree
+get Tree/Branch/Leaf
+get 
+get Tree/Branhc/Leaf
+keys
 get Tree
 keys
+get Tree/Branch
+get Tree
+get Tree/Branhc/Leaf
 keys
-get Tree/Branch/Leaf
+setvalue Tera/Game/File1 data1
+get 
+keys
+get Tre
+get Tera
+get Tera/Game/File1

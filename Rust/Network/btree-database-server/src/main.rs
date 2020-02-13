@@ -2,7 +2,7 @@ extern crate tokio;
 
 // Imports for database reference counter, mutex and lock
 use std::sync::Arc;
-use std::sync::Mutex;
+use std::sync::RwLock;
 
 // For parsing client input
 use tokio::codec::Decoder;
@@ -35,14 +35,14 @@ enum Data {
     Value(String),
 }
 
-fn get_keys(database_arc: &Arc<Mutex<BTreeMap<String, Data>>>) -> Vec<String> {
-    let db = (*database_arc).lock().unwrap();
+fn get_keys(database_arc: &Arc<RwLock<BTreeMap<String, Data>>>) -> Vec<String> {
+    let db = (*database_arc).read().unwrap();
     return (*db).keys().cloned().collect();
 }
 
-fn get_value(database_arc: &Arc<Mutex<BTreeMap<String, Data>>>, parameters: Vec<String>) -> Result<Data, String> {
+fn get_value(database_arc: &Arc<RwLock<BTreeMap<String, Data>>>, parameters: Vec<String>) -> Result<Data, String> {
 
-    let db = database_arc.lock().unwrap();
+    let db = database_arc.read().unwrap();
     let mut sub_db = &(*db);
     if parameters.len() > 0{
         for i in 0..(parameters.len() -1){
@@ -79,8 +79,8 @@ fn get_value(database_arc: &Arc<Mutex<BTreeMap<String, Data>>>, parameters: Vec<
     }
 }
 
-fn set_value(database_arc: &mut Arc<Mutex<BTreeMap<String, Data>>>, parameters: SetParameters) -> String {
-    let mut db = database_arc.lock().unwrap();
+fn set_value(database_arc: &mut Arc<RwLock<BTreeMap<String, Data>>>, parameters: SetParameters) -> String {
+    let mut db = database_arc.write().unwrap();
     let mut sub_db = &mut (*db); // BTree variable for loop where we borrow the root as mutable
     if parameters.btrees.len() > 0 {
         for tree in parameters.btrees{ // Loop through all the BTree keys
@@ -123,9 +123,9 @@ fn set_value(database_arc: &mut Arc<Mutex<BTreeMap<String, Data>>>, parameters: 
     }
 }
 
-fn remove_value(database_arc: &Arc<Mutex<BTreeMap<String, Data>>>, parameters: Vec<String>) -> String {
+fn remove_value(database_arc: &Arc<RwLock<BTreeMap<String, Data>>>, parameters: Vec<String>) -> String {
 
-    let mut db = database_arc.lock().unwrap();
+    let mut db = database_arc.write().unwrap();
     let mut sub_db = &mut (*db);
     if parameters.len() > 0{
         for i in 0..(parameters.len() -1){
@@ -306,7 +306,7 @@ fn lines_from_file(filename: impl AsRef<Path>) -> Vec<String> {
 
 /*                            RESTORING DATABASE FROM FILE                                       */
 
-fn restore_database_from_log(filename: &str, mut database_arc: &mut Arc<Mutex<BTreeMap<String, Data>>>){
+fn restore_database_from_log(filename: &str, mut database_arc: &mut Arc<RwLock<BTreeMap<String, Data>>>){
     let file_lines = lines_from_file(filename);
     if !file_lines.is_empty() {
         for line in file_lines{
@@ -318,7 +318,7 @@ fn restore_database_from_log(filename: &str, mut database_arc: &mut Arc<Mutex<BT
 
 /*                                      SERVER RESOURCES                                         */
 
-fn send_db_command_get_reponse(command: Command, mut database_arc: &mut Arc<Mutex<BTreeMap<String, Data>>>) -> (String, bool){
+fn send_db_command_get_reponse(command: Command, mut database_arc: &mut Arc<RwLock<BTreeMap<String, Data>>>) -> (String, bool){
     // To know if we should write to log or not
     let is_valid_command;
     if let Command::Error(_) = command{
@@ -378,7 +378,7 @@ fn main() {
 
     let map: BTreeMap<String, Data> = BTreeMap::new();
 
-    let database_arc = Arc::new(Mutex::new(map));
+    let database_arc = Arc::new(RwLock::new(map));
 
     let server = listener
         .incoming()
