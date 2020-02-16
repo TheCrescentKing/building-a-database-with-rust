@@ -144,6 +144,8 @@ impl Database {
         let mut log_file = (*self.log_file_arc).write().unwrap();
         if let Err(e) = writeln!(log_file, "{}", string_to_save) { // Re create file if deleted while running
             eprintln!("Couldn't write to log-file: {}", e);
+        }else{
+            log_file.sync_all().unwrap();
         }
     }
 
