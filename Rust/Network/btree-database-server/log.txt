@@ -3,3 +3,4 @@ SET  Name Ho-Oh
 SET  Player Kazilik
 SET NPCs Matilda Magic!
 SET NPCs Oak Professor
+SET  Ho lol

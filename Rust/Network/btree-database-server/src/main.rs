@@ -63,6 +63,7 @@ fn trim_newline(s: &mut String) {
 fn parse_string(input_string: &String) -> Command {
     let mut input = input_string.clone();
     trim_newline(&mut input);
+    let input = input.chars().filter(|char| !char.is_control()).collect::<String>();
     let mut input_vec = input
         .split(" ") // Split by spaces
         .map(ToString::to_string)
@@ -73,10 +74,10 @@ fn parse_string(input_string: &String) -> Command {
     }
 
     match input_vec[0].to_lowercase().as_str() {
-        "keys" => {
-            return Command::Keys;
-        }
         "get" => {
+            if input_vec.len() == 1{
+                return Command::Keys;
+            }
             if input_vec.len() != 2 {
                 return Command::Error("Error: Get receives 1 parameter!".to_string());
             }
