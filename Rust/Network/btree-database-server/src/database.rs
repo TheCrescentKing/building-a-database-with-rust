@@ -12,7 +12,6 @@ use std::collections::btree_map::Entry::*;
 use std::{
     fs::File,
     io::{prelude::*, BufReader},
-    path::Path,
 };
 
 use std::fs::OpenOptions;
@@ -67,12 +66,8 @@ impl SetParameters {
 
 /*                                      FILE READER                                              */
 
-fn lines_from_file(filename: impl AsRef<Path>) -> Vec<String> {
-    let file = File::open(filename);
-    if let Err(_) = file{
-        return vec!();
-    }
-    let buf = BufReader::new(file.unwrap());
+fn lines_from_file(file: &File) -> Vec<String> {
+    let buf = BufReader::new(file);
     buf.lines()
         .map(|l| l.expect("Could not parse line"))
         .collect()
@@ -97,7 +92,7 @@ fn parse_log_line(mut log_line: String) -> Command{
             let key: String;
             let mut btrees = vec!();
             let value: String = input_vec.pop().unwrap();
-            if input_vec[0].contains("/"){
+            if input_vec[0].contains("/") || !input_vec[0].is_empty(){
                 let param_directories = input_vec[0]
                     .split("/") // Split by slash
                     .map(ToString::to_string)
@@ -135,6 +130,7 @@ impl Database {
         let mut db = Database{
             database_arc: Arc::new(RwLock::new(DBSignature::new())),
             log_file_arc: Arc::new(RwLock::new(OpenOptions::new()
+                .read(true)
                 .append(true)
                 .create(true)
                 .open(LOG_FILE)
@@ -355,7 +351,9 @@ impl Database {
 
     // Restore from log
     fn restore_from_log(&mut self){
-        let file_lines = lines_from_file(LOG_FILE);
+        let log_file = self.log_file_arc.read().unwrap();
+        let file_lines = lines_from_file(&log_file);
+        drop(log_file);
         if !file_lines.is_empty() {
             for line in file_lines{
                 let command = parse_log_line(line.clone());

@@ -1,3 +1,4 @@
 SET Tera/Game/Assets File1 Dialogue
 SET  Name Ho-Oh
 SET  Player Kazilik
+SET NPCs Matilda Magic!
