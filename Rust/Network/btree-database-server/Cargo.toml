@@ -1,5 +1,5 @@
 [package]
-name = "echo-server"
+name = "database-server"
 version = "0.1.0"
 authors = ["John McMenemy <john.mcmenemy.2017@uni.strath.ac.uk>"]
 edition = "2018"
