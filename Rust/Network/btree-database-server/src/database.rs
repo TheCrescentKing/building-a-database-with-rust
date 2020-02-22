@@ -194,7 +194,7 @@ impl Database {
 
         match (*sub_db).get(key) {
             None => {
-                return Err(format!("Error: the key {}, does not have a value.", key));
+                return Err(format!("Error: Value not found under {}", key));
             }
             Some(data) => {
                 return Ok(data.clone());
@@ -243,15 +243,8 @@ impl Database {
         }
 
         // Finally, add the key Value pair the the desired BTree represented by sub_db
-        let insert_result = (*sub_db).insert(parameters.get_key(), Data::Value(parameters.get_value())); // TODO Add safety check for unwrap even though it should NEVER be None
-        match insert_result {
-            None => {
-                return format!("Value set.");
-            }
-            Some(_) => {
-                return format!("Value updated.");
-            }
-        }
+        /*let insert_result = */(*sub_db).insert(parameters.get_key(), Data::Value(parameters.get_value())); // TODO Add safety check for unwrap even though it should NEVER be None
+        format!("Ok")
     }
 
     pub fn remove_value(&mut self, parameters: Vec<String>, save_log_flag: bool) -> String {
@@ -295,10 +288,10 @@ impl Database {
             Some(removed_data) => {
                 match removed_data {
                     Data::Value(val) => {
-                        return format!("Removed value: {}\n", val);
+                        return format!("{}\n", val);
                     }
                     Data::Map(_) => {
-                        return format!("Removed directory under: {}\n", &(parameters[0]));
+                        return format!("{}\n", &(parameters[0]));
                     }
                 }
             }

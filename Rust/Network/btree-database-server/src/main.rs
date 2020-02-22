@@ -1,29 +1,8 @@
-//! A "hello world" echo server with Tokio
-//!
-//! This server will create a TCP listener, accept connections in a loop, and
-//! write back everything that's read off of each TCP connection.
-//!
-//! Because the Tokio runtime uses a thread pool, each TCP connection is
-//! processed concurrently with all other TCP connections across multiple
-//! threads.
-//!
-//! To see this server in action, you can run this in one terminal:
-//!
-//!     cargo run --example echo
-//!
-//! and in another terminal you can run:
-//!
-//!     cargo run --example connect 127.0.0.1:8080
-//!
-//! Each line you type in to the `connect` terminal should be echo'd back to
-//! you! If you open up multiple terminals running the `connect` example you
-//! should be able to see them all make progress simultaneously.
-
 #![warn(rust_2018_idioms)]
 
 use tokio;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
-use tokio::net::TcpListener;
+use tokio::net::{TcpListener, TcpStream};
 
 use std::env;
 use std::error::Error;
@@ -35,16 +14,11 @@ use database::Command;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
-    // Allow passing an address to listen on as the first argument of this
-    // program, but otherwise we'll just set up our TCP listener on
-    // 127.0.0.1:8080 for connections.
+
     let addr = env::args()
         .nth(1)
         .unwrap_or_else(|| "127.0.0.1:6142".to_string());
 
-    // Next up we create a TCP listener which will listen for incoming
-    // connections. This TCP listener is bound to the address we determined
-    // above and must be associated with an event loop.
     let mut listener = TcpListener::bind(&addr).await?;
     println!("Listening on: {}", addr);
 
@@ -54,22 +28,11 @@ async fn main() -> Result<(), Box<dyn Error>> {
         // Asynchronously wait for an inbound socket.
         let (mut socket, _) = listener.accept().await?;
 
-        // And this is where much of the magic of this server happens. We
-        // crucially want all clients to make progress concurrently, rather than
-        // blocking one on completion of another. To achieve this we use the
-        // `tokio::spawn` function to execute the work in the background.
-        //
-        // Essentially here we're executing a new task to run concurrently,
-        // which will allow all of our clients to be processed concurrently.
-
         let mut db = db.clone();
 
         tokio::spawn(async move {
 
             let mut incoming_message: String = "".to_string();
-
-            // let size = 1024;
-            // let mut buf: Box<[u8]> = vec![0; size].into_boxed_slice();
 
             // In a loop, read data from the socket and write the data back.
             loop {
@@ -84,43 +47,64 @@ async fn main() -> Result<(), Box<dyn Error>> {
                     return;
                 }
 
-                let mut query_result: String = "".to_string();
-
                 match &String::from_utf8(buf.to_vec()){
                     Err(utf8_error) => {
-                        query_result = format!("Error: The command contained invalid text data. Details: {:?}", utf8_error.utf8_error());
+                        let query_result = format!("Error: The command contained invalid text data. Details: {:?}", utf8_error.utf8_error());
+                        socket
+                            .write_all(query_result.as_bytes())
+                            .await
+                            .expect("failed to write data to socket");
                     },
                     Ok(result) =>{
-                        let result = result
-                                        .chars()
-                                        .filter(|c| *c != '\u{0}')
-                                        .collect::<String>();
-                        incoming_message.push_str(&result);
-                        match incoming_message.chars().last(){
-                            None => {
-                                query_result = format!("Error: No data was received from the socket.");
-                            },
-                            Some(char) =>{
-                                if char == '\n'{
-                                    query_result = format!("{}\n", db.send_db_command_get_reponse(parse_string(&incoming_message), true));
-                                    incoming_message.clear();
-                                }
-                            }
-                        }
+                        println!("Before filtering buffer: {}", result);
+                        parse_buffer(&result, &mut incoming_message, &mut socket, &mut db).await;
                     }
                 }
 
-                socket
-                    // .write_all(&buf[0..n])
-                    .write_all(query_result.as_bytes())
-                    .await
-                    .expect("failed to write data to socket");
             }
         });
     }
 }
 
 /*                                      STRING PARSER                                        */
+
+async fn parse_buffer(result : &String, incoming_message: &mut String, socket: &mut TcpStream, db: &mut Database){
+    let mut result = result.clone();
+    result = result.chars()
+        .filter(|c| *c != '\u{0}')
+        .collect::<String>();
+
+    if result.contains(";"){
+        let commands: Vec<String>;
+        if result.chars().filter(|c| *c == ';').count() > 1{
+            result = result.chars()
+                .filter(|c| *c != '\n')
+                .collect::<String>();
+            commands = result.split(";").map(ToString::to_string).collect::<Vec<String>>();
+        }else{
+            match result.find(';'){
+                Some(index) => {
+                    result.split_off(index);
+                }
+                None => {
+                    return;
+                }
+            }
+            commands = result.split("\n").map(ToString::to_string).collect::<Vec<String>>();
+        }
+        incoming_message.push_str(&result);
+        for command in commands{
+            let query_result = format!("{}\n", db.send_db_command_get_reponse(string_to_command(&command), true));
+            socket
+                .write_all(query_result.as_bytes())
+                .await
+                .expect("failed to write data to socket");
+        }
+        incoming_message.clear();
+    }else{
+        incoming_message.push_str(&result);
+    }
+}
 
 fn trim_newline(s: &mut String) {
     if s.ends_with('\n') {
@@ -131,8 +115,8 @@ fn trim_newline(s: &mut String) {
     }
 }
 
-fn parse_string(input_string: &String) -> Command {
-    println!("{:?}", input_string);
+fn string_to_command(input_string: &String) -> Command {
+    println!("Parsing command: {:?}", input_string);
     let mut input = input_string.clone();
     trim_newline(&mut input);
     let input = input.chars().filter(|char| !char.is_control()).collect::<String>();

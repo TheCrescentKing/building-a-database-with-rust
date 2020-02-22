@@ -4,3 +4,15 @@ SET  Player Kazilik
 SET NPCs Matilda Magic!
 SET NPCs Oak Professor
 SET  Ho lol
+SET  Name Sephiroth
+SET  Name Sephiroth
+SET  Name Sephirot
+SET  Name Sephiroth
+SET  Name Sephiroth
+SET  Name Sephiroth
+SET  Name Sephiroth
+SET  Name Sephiroth
+SET  Name Sephiroth
+REM Name
+SET  Name Sephiroth
+REM Name
