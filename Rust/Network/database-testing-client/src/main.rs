@@ -24,22 +24,24 @@ async fn main() -> Result<(), Box<dyn Error>> {
     // above and must be associated with an event loop.
     let mut socket = TcpStream::connect(&addr).await?;
 
-    socket.write_all("set Name Sephiroth;\n".as_bytes()).await.expect("failed to write data to socket");
+    socket.write_all("ç".as_bytes()).await.expect("failed to write data to socket");
 
-    let response: String = read_from_socket(&mut socket).await;
-    assert_eq!(true, response.contains("Ok"));
-
-    socket.write_all("get Name;\n".as_bytes()).await.expect("failed to read data from socket");
-    let response: String = read_from_socket(&mut socket).await;
-    assert_eq!(true, response.contains("Sephiroth"));
-
-    socket.write_all("remove Name;\n".as_bytes()).await.expect("failed to write data to socket");
-    let response: String = read_from_socket(&mut socket).await;
-    assert_eq!(true, response.contains("Sephiroth"));
-
-    socket.write_all("get Name;\n".as_bytes()).await.expect("failed to read data from socket");
-    let response: String = read_from_socket(&mut socket).await;
-    assert_eq!(true, (response.contains("not found") && response.contains("Name")));
+    // socket.write_all("set Name Sephiroth;\n".as_bytes()).await.expect("failed to write data to socket");
+    //
+    // let response: String = read_from_socket(&mut socket).await;
+    // assert_eq!(true, response.contains("Ok"));
+    //
+    // socket.write_all("get Name;\n".as_bytes()).await.expect("failed to read data from socket");
+    // let response: String = read_from_socket(&mut socket).await;
+    // assert_eq!(true, response.contains("Sephiroth"));
+    //
+    // socket.write_all("remove Name;\n".as_bytes()).await.expect("failed to write data to socket");
+    // let response: String = read_from_socket(&mut socket).await;
+    // assert_eq!(true, response.contains("Sephiroth"));
+    //
+    // socket.write_all("get Name;\n".as_bytes()).await.expect("failed to read data from socket");
+    // let response: String = read_from_socket(&mut socket).await;
+    // assert_eq!(true, (response.contains("not found") && response.contains("Name")));
 
     Ok(())
 }
