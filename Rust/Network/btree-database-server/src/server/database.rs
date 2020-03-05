@@ -64,61 +64,6 @@ impl SetParameters {
     }
 }
 
-/*                                      FILE READER                                              */
-
-fn lines_from_file(file: &File) -> Vec<String> {
-    let buf = BufReader::new(file);
-    buf.lines()
-        .map(|l| l.expect("Could not parse line"))
-        .collect()
-}
-
-fn parse_log_line(mut log_line: String) -> Command{
-    // Remove trailing white space
-    if log_line.ends_with('\n') {
-        log_line.pop();
-        if log_line.ends_with('\r') {
-            log_line.pop();
-        }
-    }
-
-    let mut input_vec = log_line
-        .split(" ") // Split by spaces
-        .map(ToString::to_string)
-        .collect::<Vec<String>>();
-
-    match input_vec.remove(0).as_str(){
-        "SET" =>{
-            let key: String;
-            let mut btrees = vec!();
-            let value: String = input_vec.pop().unwrap();
-            if input_vec[0].contains("/") || !input_vec[0].is_empty(){
-                let param_directories = input_vec[0]
-                    .split("/") // Split by slash
-                    .map(ToString::to_string)
-                    .collect::<Vec<String>>();
-                btrees = param_directories;
-                key = input_vec.remove(1);
-            } else{
-                key = input_vec.remove(1); // Because 0 will be empty as there are no BTree parameters
-            }
-            let parsed_values = SetParameters::new(key, value, btrees);
-            return Command::SetValue(parsed_values);
-        },
-        "REM" => {
-            let param_keys = input_vec[0]
-                .split("/") // Split by slash
-                .map(ToString::to_string)
-                .collect::<Vec<String>>();
-            return Command::Remove(param_keys);
-        },
-        _ => {
-            return Command::Error("Error: Command not found while parsing log!".to_string());
-        }
-    }
-}
-
-
 pub struct Database {
     database_arc: Arc<RwLock<DBSignature>>,
     log_file_arc: Arc<RwLock<File>>,
@@ -356,6 +301,58 @@ impl Database {
             }
         }
     }
+}
 
+/*                                      FILE READER                                              */
 
+fn lines_from_file(file: &File) -> Vec<String> {
+    let buf = BufReader::new(file);
+    buf.lines()
+        .map(|l| l.expect("Could not parse line"))
+        .collect()
+}
+
+fn parse_log_line(mut log_line: String) -> Command{
+    // Remove trailing white space
+    if log_line.ends_with('\n') {
+        log_line.pop();
+        if log_line.ends_with('\r') {
+            log_line.pop();
+        }
+    }
+
+    let mut input_vec = log_line
+        .split(" ") // Split by spaces
+        .map(ToString::to_string)
+        .collect::<Vec<String>>();
+
+    match input_vec.remove(0).as_str(){
+        "SET" =>{
+            let key: String;
+            let mut btrees = vec!();
+            let value: String = input_vec.pop().unwrap();
+            if input_vec[0].contains("/") || !input_vec[0].is_empty(){
+                let param_directories = input_vec[0]
+                    .split("/") // Split by slash
+                    .map(ToString::to_string)
+                    .collect::<Vec<String>>();
+                btrees = param_directories;
+                key = input_vec.remove(1);
+            } else{
+                key = input_vec.remove(1); // Because 0 will be empty as there are no BTree parameters
+            }
+            let parsed_values = SetParameters::new(key, value, btrees);
+            return Command::SetValue(parsed_values);
+        },
+        "REM" => {
+            let param_keys = input_vec[0]
+                .split("/") // Split by slash
+                .map(ToString::to_string)
+                .collect::<Vec<String>>();
+            return Command::Remove(param_keys);
+        },
+        _ => {
+            return Command::Error("Error: Command not found while parsing log!".to_string());
+        }
+    }
 }
