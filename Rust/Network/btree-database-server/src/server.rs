@@ -23,15 +23,6 @@ pub async fn main() -> std::result::Result<(), std::boxed::Box<std::io::Error>> 
     let addr = "127.0.0.1:6142".to_string();
 
     let mut listener = TcpListener::bind(&addr).await?;
-    // let mut listener;
-    // match TcpListener::bind(&addr).await{
-    //     Ok(tcp_listener)=>{
-    //         listener = tcp_listener;
-    //     }
-    //     Err(error)=>{
-    //         return Err(Box::new(error));
-    //     }
-    // }
 
     println!("Listening on: {}", addr);
 
@@ -40,17 +31,6 @@ pub async fn main() -> std::result::Result<(), std::boxed::Box<std::io::Error>> 
     loop {
         // Asynchronously wait for an inbound socket.
         let (mut socket, _) = listener.accept().await?;
-        // let mut socket;
-        // match listener.accept().await{
-        //     Ok((s, _))=>{
-        //         socket = s;
-        //     }
-        //     Err(error)=>{
-        //         return Err(Box::new(error));
-        //         // return box.into_raw();
-        //         // return "Error occurred when connecting to client.".to_string();
-        //     }
-        // }
 
         let mut db = db.clone();
 
