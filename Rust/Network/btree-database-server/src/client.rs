@@ -1,15 +1,19 @@
 #![warn(rust_2018_idioms)]
 
 use std::str;
+use std::io::Error;
 
 use tokio;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpStream;
 
-use std::time::{Duration, Instant};
+use std::time::{Instant};
+
+use rand::{thread_rng, Rng};
+use rand::distributions::{Alphanumeric, Uniform};
 
 
-pub async fn main() -> std::result::Result<(), std::boxed::Box<std::io::Error>> {
+pub async fn main() -> Result<(), Box<Error>> {
 
     // let addr = env::args()
     //     .nth(1)
@@ -29,9 +33,53 @@ pub async fn main() -> std::result::Result<(), std::boxed::Box<std::io::Error>> 
 
     // socket.write_all("ç".as_bytes()).await.expect("failed to write data to socket");
 
+    short_test_all_commands(&mut socket).await;
+    // multiple_set_commands(&mut socket, 1000).await;
+
+    Ok(())
+}
+
+async fn multiple_set_commands(mut socket: &mut TcpStream, number: u128){
+
     let mut sum_of_times = 0;
 
-    for i in 0..10{
+    let start_time = Instant::now();
+
+    for _i in 0..number{
+
+        let first_time = Instant::now();
+
+        let range = Uniform::new(5, 100);
+
+        let x = thread_rng().sample(range);
+        let key: String = thread_rng().sample_iter(Alphanumeric).take(x).collect();
+        let x = thread_rng().sample(range);
+        let value: String = thread_rng().sample_iter(Alphanumeric).take(x).collect();
+
+        let command = format!("set {} {};\n", key, value);
+
+
+        socket.write_all(command.as_bytes()).await.expect("failed to write data to socket");
+        let _response: String = read_from_socket(&mut socket).await;
+
+        let second_time = Instant::now();
+        let time_taken = second_time.duration_since(first_time).as_millis();
+        // println!("Iteration {}, time taken {}ms", i, time_taken);
+        sum_of_times += time_taken;
+    }
+
+    let end_time = Instant::now();
+
+    let total_time = end_time.duration_since(start_time).as_secs();
+
+    println!("Client report: Time taken to complete the average test was {}ms. Total time taken {}s", (sum_of_times/number), total_time);
+
+}
+
+async fn short_test_all_commands(mut socket: &mut TcpStream){
+    let mut sum_of_times = 0;
+
+    for _i in 0..10{
 
         let start_time = Instant::now();
 
@@ -54,14 +102,12 @@ pub async fn main() -> std::result::Result<(), std::boxed::Box<std::io::Error>> 
 
         let end_time = Instant::now();
 
-        println!("Loop {} time {:?}", i, end_time.duration_since(start_time).as_millis());
+        // println!("Loop {} time {:?}", i, end_time.duration_since(start_time).as_millis());
 
         sum_of_times += end_time.duration_since(start_time).as_millis();
     }
 
     println!("Client report: Time taken to complete tests is {}", (sum_of_times/10));
-
-    Ok(())
 }
 
 async fn read_from_socket(socket: &mut TcpStream) -> String{

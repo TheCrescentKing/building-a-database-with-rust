@@ -10,8 +10,10 @@ use std::collections::btree_map::Entry::*;
 
 // Imports for file reading/writing
 use std::{
+    fs,
     fs::File,
     io::{prelude::*, BufReader},
+    path::Path,
 };
 
 use std::fs::OpenOptions;
@@ -71,14 +73,32 @@ pub struct Database {
 
 impl Database {
 
-    pub fn new() -> Database{
+    pub fn new(reset_log: bool, log_dir: &str) -> Database{
+        let log_path = Path::new(log_dir);
+        if !log_path.is_dir(){
+            println!("Error: The directory for storing the log '{}' does not exist.", log_dir);
+            std::process::exit(-1);
+        }
+        let log_path_buf = log_path.join(LOG_FILE);
+        let log_path = log_path_buf.as_path();
+        if reset_log && log_path.is_file(){
+            let result : std::io::Result<()> = fs::remove_file(log_path);
+            match result{
+                Err(_)=>{
+                    println!("Error: Removing the log file failed.");
+                    std::process::exit(-1);
+                }
+                _ =>{
+                }
+            }
+        }
         let mut db = Database{
             database_arc: Arc::new(RwLock::new(DBSignature::new())),
             log_file_arc: Arc::new(RwLock::new(OpenOptions::new()
                 .read(true)
                 .append(true)
                 .create(true)
-                .open(LOG_FILE)
+                .open(log_path)
                 .unwrap())),
             };
         db.restore_from_log();
@@ -90,7 +110,9 @@ impl Database {
         if let Err(e) = writeln!(log_file, "{}", string_to_save) { // Re create file if deleted while running
             eprintln!("Couldn't write to log-file: {}", e);
         }else{
-            log_file.sync_all().unwrap();
+            log_file.flush().unwrap();
+            // println!("{:?}", result);
+            // log_file.sync_data().unwrap();
         }
     }
 

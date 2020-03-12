@@ -13,7 +13,7 @@ use database::SetParameters;
 use database::Command;
 
 
-pub async fn main() -> std::result::Result<(), std::boxed::Box<std::io::Error>> {
+pub async fn main(reset_log: bool) -> std::result::Result<(), std::boxed::Box<std::io::Error>> {
 
 
     // let addr = env::args()
@@ -26,7 +26,7 @@ pub async fn main() -> std::result::Result<(), std::boxed::Box<std::io::Error>> 
 
     println!("Listening on: {}", addr);
 
-    let db = Database::new();
+    let db = Database::new(reset_log, "./");
 
     loop {
         // Asynchronously wait for an inbound socket.
@@ -54,7 +54,7 @@ pub async fn main() -> std::result::Result<(), std::boxed::Box<std::io::Error>> 
                 let mut buf_vec = buf.to_vec();
                 buf_vec.truncate(n);
 
-                println!("{:?}", buf_vec);
+                // println!("{:?}", buf_vec);
 
                 match &String::from_utf8(buf_vec){
                     Err(utf8_error) => {
@@ -65,7 +65,7 @@ pub async fn main() -> std::result::Result<(), std::boxed::Box<std::io::Error>> 
                             .expect("failed to write data to socket");
                     },
                     Ok(result) =>{
-                        println!("Before filtering buffer: {}", result);
+                        // println!("Before filtering buffer: {}", result);
                         parse_buffer(&result, &mut incoming_message, &mut socket, &mut db).await;
                     }
                 }
@@ -122,7 +122,7 @@ fn trim_newline(s: &mut String) {
 }
 
 fn string_to_command(input_string: &String) -> Command {
-    println!("Parsing command: {:?}", input_string);
+    // println!("Parsing command: {:?}", input_string);
     let mut input = input_string.clone();
     trim_newline(&mut input);
     let input = input.chars().filter(|char| !char.is_control()).collect::<String>();

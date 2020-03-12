@@ -15,7 +15,7 @@ fn main() -> std::result::Result<(), std::boxed::Box<std::io::Error>> {
     .unwrap();
 
     rt.block_on(async {
-        let _server_handle = tokio::spawn(server::main());
+        let _server_handle = tokio::spawn(server::main(true));
         let client_handle = tokio::spawn(client::main());
 
         // let server_result = server_handle.await.expect("Server handle panicked.");
