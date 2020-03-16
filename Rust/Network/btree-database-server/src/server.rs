@@ -195,6 +195,9 @@ fn string_to_command(input_string: &String) -> Command {
                 .collect::<Vec<String>>();
             return Command::Remove(param_keys);
         }
+        "resetlog" => {
+            return Command::ResetLog;
+        }
         "exit" => {
             return Command::Exit;
         }

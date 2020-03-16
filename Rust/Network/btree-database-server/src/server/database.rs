@@ -12,8 +12,8 @@ use std::collections::btree_map::Entry::*;
 use std::{
     fs,
     fs::File,
-    io::{prelude::*, BufReader},
-    path::Path,
+    io::{prelude::*, BufReader, Error},
+    path::{Path, PathBuf},
 };
 
 use std::fs::OpenOptions;
@@ -42,6 +42,7 @@ pub enum Command {
     SetValue(SetParameters),
     Remove(Vec<String>),
     Exit,
+    ResetLog,
     Error(String),
 }
 
@@ -69,6 +70,7 @@ impl SetParameters {
 pub struct Database {
     database_arc: Arc<RwLock<DBSignature>>,
     log_file_arc: Arc<RwLock<File>>,
+    log_path: PathBuf,
 }
 
 impl Database {
@@ -100,6 +102,7 @@ impl Database {
                 .create(true)
                 .open(log_path)
                 .unwrap())),
+            log_path: log_path.to_owned(),
             };
         db.restore_from_log();
         db
@@ -110,9 +113,9 @@ impl Database {
         if let Err(e) = writeln!(log_file, "{}", string_to_save) { // Re create file if deleted while running
             eprintln!("Couldn't write to log-file: {}", e);
         }else{
-            log_file.flush().unwrap();
+            // log_file.flush().unwrap();
             // println!("{:?}", result);
-            // log_file.sync_data().unwrap();
+            log_file.sync_data().unwrap();
         }
     }
 
@@ -120,17 +123,18 @@ impl Database {
         Database{
             database_arc: self.database_arc.clone(),
             log_file_arc: self.log_file_arc.clone(),
+            log_path: self.log_path.clone(),
         }
     }
 
     // Accessors & Mutators
 
-    pub fn get_keys(&self) -> Vec<String> {
+    fn get_keys(&self) -> Vec<String> {
         let db = (*self.database_arc).read().unwrap();
         return (*db).keys().cloned().collect();
     }
 
-    pub fn get_value(&self, parameters: Vec<String>) -> Result<Data, String> {
+    fn get_value(&self, parameters: Vec<String>) -> Result<Data, String> {
 
         let db = (*self.database_arc).read().unwrap();
         let mut sub_db = &(*db);
@@ -169,7 +173,7 @@ impl Database {
         }
     }
 
-    pub fn set_value(&mut self, parameters: SetParameters, save_log_flag: bool) -> String {
+    fn set_value(&mut self, parameters: SetParameters, save_log_flag: bool) -> String {
 
         if save_log_flag{
             let log_string = format!("SET {} {} {}", parameters.get_btrees().join("/"), parameters.get_key(), parameters.get_value());
@@ -214,7 +218,7 @@ impl Database {
         format!("Ok")
     }
 
-    pub fn remove_value(&mut self, parameters: Vec<String>, save_log_flag: bool) -> String {
+    fn remove_value(&mut self, parameters: Vec<String>, save_log_flag: bool) -> String {
 
         if save_log_flag{
             let log_string = format!("REM {}", parameters.join("/"));
@@ -265,6 +269,10 @@ impl Database {
         }
     }
 
+    fn remove_log(&self) -> Result<(), Error>{
+         return fs::remove_file(&self.log_path)
+    }
+
     pub fn send_db_command_get_reponse(&mut self, command: Command,  save_log_flag: bool) -> String{
         let query_result: String;
 
@@ -302,6 +310,17 @@ impl Database {
             Command::Remove(parameters) => {
                 let remove_result = self.remove_value(parameters, save_log_flag);
                 query_result = format!("{}", remove_result);
+            }
+            Command::ResetLog =>{
+                let result = self.remove_log();
+                match result{
+                    Err(err)=>{
+                        query_result = format!("Error: Removing the log file failed, reason: {}", err);
+                    }
+                    Ok(()) =>{
+                        query_result = format!("Ok, log cleaned.");
+                    }
+                }
             }
             Command::Exit => {
                 std::process::exit(0);

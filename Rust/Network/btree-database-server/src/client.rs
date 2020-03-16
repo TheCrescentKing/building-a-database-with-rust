@@ -33,6 +33,11 @@ pub async fn main() -> Result<(), Box<Error>> {
 
     // socket.write_all("ç".as_bytes()).await.expect("failed to write data to socket");
 
+    // socket.write_all("resetlog;\n".as_bytes()).await.expect("failed tso write data to socket");
+    //
+    // let response: String = read_from_socket(&mut socket).await;
+    // assert_eq!(true, response.contains("Ok"));
+
     short_test_all_commands(&mut socket).await;
     // multiple_set_commands(&mut socket, 1000).await;
 
