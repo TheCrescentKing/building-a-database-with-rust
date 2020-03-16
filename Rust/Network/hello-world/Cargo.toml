@@ -1,7 +1,0 @@
-[package]
-name = "hello-world"
-version = "0.1.0"
-authors = ["John McMenemy <john.mcmenemy.2017@uni.strath.ac.uk>"]
-
-[dependencies]
-tokio = "0.1"
