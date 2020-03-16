@@ -7,19 +7,21 @@ use tokio;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpStream;
 
+use std::env;
 use std::time::{Instant};
 
 use rand::{thread_rng, Rng};
 use rand::distributions::{Alphanumeric, Uniform};
 
 
-pub async fn main() -> Result<(), Box<Error>> {
+#[tokio::main]
+async fn main() -> Result<(), Box<Error>> {
 
-    // let addr = env::args()
-    //     .nth(1)
-    //     .unwrap_or_else(|| "127.0.0.1:6142".to_string());
+    let addr = env::args()
+        .nth(1)
+        .unwrap_or_else(|| "127.0.0.1:6142".to_string());
 
-    let addr = "127.0.0.1:6142".to_string();
+    // let addr = "127.0.0.1:6142".to_string();
 
     let mut socket;
     match TcpStream::connect(&addr).await{

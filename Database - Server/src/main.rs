@@ -4,29 +4,29 @@ use tokio;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
 
-// use std::env;
-// use std::error::Error;
+use std::env;
+use std::error::Error;
 
 mod database;
 use database::Database;
 use database::SetParameters;
 use database::Command;
 
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn Error>> {
 
-pub async fn main(reset_log: bool) -> std::result::Result<(), std::boxed::Box<std::io::Error>> {
 
+    let addr = env::args()
+        .nth(1)
+        .unwrap_or_else(|| "127.0.0.1:6142".to_string());
 
-    // let addr = env::args()
-    //     .nth(1)
-    //     .unwrap_or_else(|| "127.0.0.1:6142".to_string());
-
-    let addr = "127.0.0.1:6142".to_string();
+    // let addr = "127.0.0.1:6142".to_string();
 
     let mut listener = TcpListener::bind(&addr).await?;
 
     println!("Listening on: {}", addr);
 
-    let db = Database::new(reset_log, "./");
+    let db = Database::new(false, "./");
 
     loop {
         // Asynchronously wait for an inbound socket.
