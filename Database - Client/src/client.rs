@@ -2,6 +2,7 @@
 
 use std::str;
 use std::thread;
+use std::io;
 use std::io::Error;
 
 use tokio;
@@ -59,11 +60,24 @@ pub async fn main(addr: String, command: u8) -> Result<(), Box<Error>> {
         },
         4 =>{
             change_name(&mut socket, "Name", "Alice").await;
+        },
+        5 => {
+            read_from_console(&mut socket).await;
         }
         _ =>{}
     }
 
     Ok(())
+}
+
+async fn read_from_console(mut socket: &mut TcpStream){
+    loop{
+        let mut input = String::new();
+        io::stdin().read_line(&mut input).expect("Failed to read line");
+        socket.write_all(input.as_bytes()).await.expect("failed to read data from socket");
+        let response: String = read_from_socket(&mut socket).await;
+        println!("{:?}", response);
+    }
 }
 
 async fn multiple_set_commands(mut socket: &mut TcpStream, number: u128){
