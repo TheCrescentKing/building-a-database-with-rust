@@ -1,6 +1,7 @@
 #![warn(rust_2018_idioms)]
 
 use std::str;
+use std::thread;
 use std::io::Error;
 
 use tokio;
@@ -12,8 +13,16 @@ use std::time::{Instant};
 use rand::{thread_rng, Rng};
 use rand::distributions::{Alphanumeric, Uniform};
 
+use std::{
+    fs,
+    fs::OpenOptions
+};
+use std::io::Write;
+
 
 pub async fn main(addr: String, command: u8) -> Result<(), Box<Error>> {
+
+    let _result : std::io::Result<()> = fs::remove_file("output.txt");
 
     // let addr = env::args()
     //     .nth(1)
@@ -58,7 +67,6 @@ pub async fn main(addr: String, command: u8) -> Result<(), Box<Error>> {
 }
 
 async fn multiple_set_commands(mut socket: &mut TcpStream, number: u128){
-
     let mut sum_of_times = 0;
 
     let start_time = Instant::now();
@@ -67,7 +75,7 @@ async fn multiple_set_commands(mut socket: &mut TcpStream, number: u128){
 
         let first_time = Instant::now();
 
-        let range = Uniform::new(5, 100);
+        let range = Uniform::new(5, 10);
 
         let x = thread_rng().sample(range);
         let key: String = thread_rng().sample_iter(Alphanumeric).take(x).collect();
@@ -75,10 +83,13 @@ async fn multiple_set_commands(mut socket: &mut TcpStream, number: u128){
         let value: String = thread_rng().sample_iter(Alphanumeric).take(x).collect();
 
         let command = format!("set {} {};\n", key, value);
-
+        // println!("{:?}", command);
+        save_to_file(&command);
 
         socket.write_all(command.as_bytes()).await.expect("failed to write data to socket");
-        let _response: String = read_from_socket(&mut socket).await;
+        let response: String = read_from_socket(&mut socket).await;
+        // println!("Client received {:?}", response);
+        save_to_file(&response);
 
         let second_time = Instant::now();
         let time_taken = second_time.duration_since(first_time).as_millis();
@@ -135,9 +146,10 @@ async fn change_name(mut socket: &mut TcpStream, key: &str, value: &str){
         socket.write_all(command.as_bytes()).await.expect("failed to write data to socket");
         let _response: String = read_from_socket(&mut socket).await;
         let command = "get Name;\n";
+        thread::sleep_ms(100);
         socket.write_all(command.as_bytes()).await.expect("failed to write data to socket");
         let response: String = read_from_socket(&mut socket).await;
-        // println!("Value: {}, response: {}", value, response);
+        println!("Value: {}, response: {}", value, response);
         assert_eq!(true, response.contains(value));
     }
 }
@@ -153,4 +165,20 @@ async fn read_from_socket(socket: &mut TcpStream) -> String{
         .filter(|c| *c != '\u{0}')
         .collect::<String>();
     response
+}
+
+fn save_to_file(string_to_save: &String) {
+    let mut output_file = OpenOptions::new()
+        .read(true)
+        .append(true)
+        .create(true)
+        .open("output.txt")
+        .unwrap();
+    if let Err(e) = write!(output_file, "{}", string_to_save) { // Re create file if deleted while running
+        eprintln!("Couldn't write to log-file: {}", e);
+    }else{
+        // log_file.flush().unwrap();
+        // println!("{:?}", result);
+        // output_file.sync_data().unwrap();
+    }
 }
