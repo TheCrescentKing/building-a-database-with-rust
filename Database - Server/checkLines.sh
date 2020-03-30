@@ -1,4 +1,4 @@
-LASTSERVER= tail -1 log.txt | cut -d' ' -f3
+LASTSERVER= tail -1 log.txt | cut -d' ' -f2
 cd ../Database\ -\ Client/
 PREVOK=0
 while IFS= read -r line

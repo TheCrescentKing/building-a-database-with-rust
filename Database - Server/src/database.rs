@@ -176,7 +176,12 @@ impl Database {
     fn set_value(&mut self, parameters: SetParameters, save_log_flag: bool) -> String {
 
         if save_log_flag{
-            let log_string = format!("SET {} {} {}", parameters.get_btrees().join("/"), parameters.get_key(), parameters.get_value());
+            let log_string;
+            if parameters.get_btrees().len() > 0{
+                log_string = format!("SET {} {} {}", parameters.get_btrees().join("/"), parameters.get_key(), parameters.get_value());
+            }else{
+                log_string = format!("SET {} {}", parameters.get_key(), parameters.get_value());
+            }
             self.save_to_log(&log_string);
         }
 
@@ -194,7 +199,7 @@ impl Database {
                                 continue;
                             }
                             Data::Value(_) => {
-                                return format!("Error: Got value when expecting tree.\n");
+                                return format!("Error: Got value when expecting tree.");
                             }
                         }
                     },
@@ -205,7 +210,7 @@ impl Database {
                                 continue;
                             }
                             Data::Value(_) => {
-                                return format!("Error: Got value when expecting tree.\n");
+                                return format!("Error: Got value when expecting tree.");
                             }
                         }
                     }
@@ -259,10 +264,10 @@ impl Database {
             Some(removed_data) => {
                 match removed_data {
                     Data::Value(val) => {
-                        return format!("{}\n", val);
+                        return format!("{}", val);
                     }
                     Data::Map(_) => {
-                        return format!("{}\n", &(parameters[0]));
+                        return format!("{}", &(parameters[0]));
                     }
                 }
             }
@@ -271,6 +276,11 @@ impl Database {
 
     fn remove_log(&self) -> Result<(), Error>{
          return fs::remove_file(&self.log_path)
+    }
+
+    fn remove_empty_values(parameters: Vec<String>) -> Vec<String>{
+        parameters.into_iter().filter(|string| !string.is_empty())
+                    .collect::<Vec<String>>()
     }
 
     pub fn send_db_command_get_reponse(&mut self, command: Command,  save_log_flag: bool) -> String{
@@ -282,9 +292,11 @@ impl Database {
             }
             Command::Keys => {
                 let keys = self.get_keys();
-                query_result = format!("The database keys are: {:?}\n", keys);
+                query_result = format!("The database keys are: {:?}", keys);
             }
             Command::Get(parameters) => {
+                // println!("{:?}", parameters);
+                let parameters = Self::remove_empty_values(parameters.clone());
                 let result = self.get_value(parameters.clone());
                 match result {
                     Err(error_string) => {
@@ -293,11 +305,11 @@ impl Database {
                     Ok(data) => {
                         match data {
                             Data::Value(val) => {
-                                query_result = format!("{}\n", val);
+                                query_result = format!("{}", val);
                             }
                             Data::Map(map) => {
                                 let keys: Vec<_> = map.keys().cloned().collect();
-                                query_result = format!("The keys of the requested tree are: {:?}\n", keys);
+                                query_result = format!("The keys of the requested tree are: {:?}", keys);
                             }
                         }
                     }
@@ -372,7 +384,7 @@ fn parse_log_line(mut log_line: String) -> Command{
             let key: String;
             let mut btrees = vec!();
             let value: String = input_vec.pop().unwrap();
-            if input_vec[0].contains("/") || !input_vec[0].is_empty(){
+            if input_vec[0].contains("/"){
                 let param_directories = input_vec[0]
                     .split("/") // Split by slash
                     .map(ToString::to_string)
@@ -380,7 +392,7 @@ fn parse_log_line(mut log_line: String) -> Command{
                 btrees = param_directories;
                 key = input_vec.remove(1);
             } else{
-                key = input_vec.remove(1); // Because 0 will be empty as there are no BTree parameters
+                key = input_vec.remove(0);
             }
             let parsed_values = SetParameters::new(key, value, btrees);
             return Command::SetValue(parsed_values);

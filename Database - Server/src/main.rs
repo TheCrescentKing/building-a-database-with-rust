@@ -82,7 +82,7 @@ async fn parse_buffer(result : &String, incoming_message: &mut String, socket: &
 
     if result.contains(";"){ // Check if we have semicolon to signify end of commands
         let commands: Vec<String>;
-        if result.chars().filter(|c| *c == ';').count() > 1{
+        if result.chars().filter(|c| *c == ';').count() > 1{ // If we have multiple commmands
             result = result.chars()
                 .filter(|c| *c != '\n') // Separate by newlines if there are multiple commands
                 .collect::<String>();
@@ -100,7 +100,7 @@ async fn parse_buffer(result : &String, incoming_message: &mut String, socket: &
         }
         incoming_message.push_str(&result); // why is this here, should it be above in the else close for non?
         for command in commands{
-            let query_result = format!("{}\n", db.send_db_command_get_reponse(string_to_command(&command), true));
+            let query_result = format!("{}", db.send_db_command_get_reponse(string_to_command(&command), true));
             socket
                 .write_all(query_result.as_bytes())
                 .await

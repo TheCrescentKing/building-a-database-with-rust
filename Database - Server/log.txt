@@ -1,3 +1,2 @@
-SET  Name John
-REM Name
-SET Tera/Game/Assets CarSound VROOM!
+SET Name John
+SET Tera/Assets/Sounds Car VROOM!
