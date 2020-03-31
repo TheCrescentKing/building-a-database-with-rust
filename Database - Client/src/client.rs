@@ -2,8 +2,6 @@
 
 use std::str;
 use std::thread;
-use std::io;
-use std::io::Error;
 
 use tokio;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
@@ -16,9 +14,17 @@ use rand::distributions::{Alphanumeric, Uniform};
 
 use std::{
     fs,
-    fs::OpenOptions
+    fs::OpenOptions,
+    fs::File
 };
-use std::io::Write;
+
+use std::{
+    io,
+    io::Error,
+    io::ErrorKind,
+    io::Write,
+    io::Read
+};
 
 
 pub async fn main(addr: String, command: u8) -> Result<(), Box<Error>> {
@@ -64,6 +70,9 @@ pub async fn main(addr: String, command: u8) -> Result<(), Box<Error>> {
         5 => {
             read_from_console(&mut socket).await;
         }
+        6 => {
+            send_file_to_server(&mut socket, "db_icon", "database_icon_64px.png").await;
+        }
         _ =>{}
     }
 
@@ -75,9 +84,41 @@ async fn read_from_console(mut socket: &mut TcpStream){
         let mut input = String::new();
         io::stdin().read_line(&mut input).expect("Failed to read line");
         socket.write_all(input.as_bytes()).await.expect("failed to read data from socket");
-        let response: String = read_from_socket(&mut socket).await;
+        let response: String = read_from_socket(&mut socket).await; // Server is waiting??? So stuck?
         println!("{:?}", response);
     }
+}
+
+async fn send_file_to_server(mut socket: &mut TcpStream, key: &str, filename: &str){
+    let result = read_a_file(filename);
+    match result {
+        Ok(mut file) =>{
+            let command_start = format!("set {} '", key);
+            let command_end = format!("';");
+            let mut command = command_start.into_bytes();
+            command.append(&mut file);
+            command.append(&mut command_end.into_bytes());
+            socket.write_all(&command).await.expect("failed to read data from socket");
+            let response: String = read_from_socket(&mut socket).await;
+            println!("{:?}", response);
+            assert_eq!(true, response.contains("Ok"));
+        },
+        Err(error) => {
+            eprintln!("Error. File not found: {:?}", error);
+            std::process::exit(-1);
+        }
+    }
+}
+
+fn read_a_file(filename: &str) -> std::io::Result<Vec<u8>> {
+    let mut file = File::open(filename).unwrap();
+
+    let mut data = Vec::new();
+    if file.read_to_end(&mut data).unwrap() == 0{
+        return Err(Error::new(ErrorKind::Other, "File could not be read!"));
+    }
+
+    return Ok(data);
 }
 
 async fn multiple_set_commands(mut socket: &mut TcpStream, number: u128){

@@ -56,19 +56,23 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
                 // println!("{:?}", buf_vec);
 
-                match &String::from_utf8(buf_vec){
-                    Err(utf8_error) => {
-                        let query_result = format!("Error: The command contained invalid text data. Details: {:?}", utf8_error.utf8_error());
-                        socket
-                            .write_all(query_result.as_bytes())
-                            .await
-                            .expect("failed to write data to socket");
-                    },
-                    Ok(result) =>{
-                        // println!("Before filtering buffer: {}", result);
-                        parse_buffer(&result, &mut incoming_message, &mut socket, &mut db).await;
-                    }
-                }
+                // match &String::from_utf8(buf_vec){
+                //     Err(utf8_error) => {
+                //         let query_result = format!("Error: The command contained invalid text data. Details: {:?}", utf8_error.utf8_error());
+                //         socket
+                //             .write_all(query_result.as_bytes())
+                //             .await
+                //             .expect("failed to write data to socket");
+                //     },
+                //     Ok(result) =>{
+                //         // println!("Before filtering buffer: {}", result);
+                //         parse_buffer(&result, &mut incoming_message, &mut socket, &mut db).await;
+                //     }
+                // }
+
+                let result = String::from_utf8_lossy(&buf_vec).into_owned();
+                // println!("Before filtering buffer: {}", result);
+                parse_buffer(&result, &mut incoming_message, &mut socket, &mut db).await;
 
             }
         });
@@ -79,27 +83,28 @@ async fn main() -> Result<(), Box<dyn Error>> {
 
 async fn parse_buffer(result : &String, incoming_message: &mut String, socket: &mut TcpStream, db: &mut Database){
     let mut result = result.clone();
+    trim_newline(&mut result);
+    // println!("After filtering buffer: {:?}", result);
 
-    if result.contains(";"){ // Check if we have semicolon to signify end of commands
-        let commands: Vec<String>;
+    if result.ends_with(";/"){ // Meaning we have transaction chain so must wait until last command
+        result.pop();
+        incoming_message.push_str(&result);
+        socket
+            .write_all("Ok".as_bytes())
+            .await
+            .expect("failed to write data to socket");
+    }else if result.ends_with(";"){ // We can process the command(s)
+        let mut commands: Vec<String> = vec![];
         if result.chars().filter(|c| *c == ';').count() > 1{ // If we have multiple commmands
-            result = result.chars()
-                .filter(|c| *c != '\n') // Separate by newlines if there are multiple commands
-                .collect::<String>();
+            // Separate by semicolon if there are multiple commands
             commands = result.split(";").map(ToString::to_string).collect::<Vec<String>>();
         }else{
-            match result.find(';'){
-                Some(index) => {
-                    result.split_off(index);
-                }
-                None => {
-                    return;
-                }
-            }
-            commands = result.split("\n").map(ToString::to_string).collect::<Vec<String>>();
+            result.pop(); // Remove end semicolon before passing to the string_to_command function
+            commands.push(result);
         }
-        incoming_message.push_str(&result); // why is this here, should it be above in the else close for non?
+        // Send command(s) to database
         for command in commands{
+            println!("Intpreted command in loop: {:?}", command);
             let query_result = format!("{}", db.send_db_command_get_reponse(string_to_command(&command), true));
             socket
                 .write_all(query_result.as_bytes())
@@ -107,9 +112,42 @@ async fn parse_buffer(result : &String, incoming_message: &mut String, socket: &
                 .expect("failed to write data to socket");
         }
         incoming_message.clear();
-    }else{
+    }else{ // Buffer was too small so rest of command in next buffer
         incoming_message.push_str(&result);
     }
+
+    println!("Incoming message= {:?}", incoming_message);
+
+    // if result.contains(";"){ // Check if we have semicolon to signify end of commands
+    //     let commands: Vec<String>;
+    //     if result.chars().filter(|c| *c == ';').count() > 1{ // If we have multiple commmands
+    //         result = result.chars()
+    //             .filter(|c| *c != '\n') // Separate by newlines if there are multiple commands
+    //             .collect::<String>();
+    //         commands = result.split(";").map(ToString::to_string).collect::<Vec<String>>();
+    //     }else{
+    //         match result.find(';'){
+    //             Some(index) => {
+    //                 result.split_off(index);
+    //             }
+    //             None => {
+    //                 return;
+    //             }
+    //         }
+    //         commands = result.split("\n").map(ToString::to_string).collect::<Vec<String>>();
+    //     }
+    //     incoming_message.push_str(&result); // why is this here, should it be above in the else close for non?
+    //     for command in commands{
+    //         let query_result = format!("{}", db.send_db_command_get_reponse(string_to_command(&command), true));
+    //         socket
+    //             .write_all(query_result.as_bytes())
+    //             .await
+    //             .expect("failed to write data to socket");
+    //     }
+    //     incoming_message.clear();
+    // }else{
+    //     incoming_message.push_str(&result);
+    // }
 }
 
 fn trim_newline(s: &mut String) {
