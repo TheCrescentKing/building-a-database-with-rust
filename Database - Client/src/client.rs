@@ -47,31 +47,24 @@ pub async fn main(addr: String, command: u8) -> Result<(), Box<Error>> {
         }
     }
 
-    // socket.write_all("ç".as_bytes()).await.expect("failed to write data to socket");
-
-    // socket.write_all("resetlog;\n".as_bytes()).await.expect("failed tso write data to socket");
-    //
-    // let response: String = read_from_socket(&mut socket).await;
-    // assert_eq!(true, response.contains("Ok"));
-
     match command{
         1 => {
-            short_test_all_commands(&mut socket).await;
+            read_from_console(&mut socket).await;
         },
         2 => {
-            multiple_set_commands(&mut socket, 100).await;
+            short_test_all_commands(&mut socket).await;
         },
         3 =>{
-            change_name(&mut socket, "Name", "Bob").await;
+            multiple_set_commands(&mut socket, 100).await;
         },
         4 =>{
-            change_name(&mut socket, "Name", "Alice").await;
+            send_file_to_server(&mut socket, "db_icon", "database_icon_64px.png").await;
         },
         5 => {
-            read_from_console(&mut socket).await;
+            change_name(&mut socket, "Name", "Bob").await;
         }
         6 => {
-            send_file_to_server(&mut socket, "db_icon", "database_icon_64px.png").await;
+            change_name(&mut socket, "Name", "Alice").await;
         }
         _ =>{}
     }
