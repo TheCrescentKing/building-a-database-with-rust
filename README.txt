@@ -1,5 +1,7 @@
 ### John McMenemy's Fourth Year Project: Building a Database with Rust ###
 
+A video demonstration was made for this project and can be found here: https://youtu.be/NnFyCwhaCpE
+
 To compile and run the software herein please make sure Rust is installed: https://www.rust-lang.org/
 An internet connection is requiered the first time the software is built since external libraries will be
 downloaded.
